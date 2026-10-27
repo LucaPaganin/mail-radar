@@ -79,8 +79,12 @@ def apply_matches(account, conn, matches: list[dict], log: Log = _noop) -> int:
             lambda m: trash if m["action"] == "trash" else m["action"].split(":", 1)[1], log)
 
 
-def select_senders(conn, senders=None, domains=None, ruleset=None, rule_globs=None) -> set[str]:
+def select_senders(conn, senders=None, domains=None, ruleset=None, rule_globs=None,
+                   everyone: bool = False) -> set[str]:
     out: set[str] = {s.lower() for s in senders or []}
+    if everyone:  # tutti i mittenti che hanno mai inviato un List-Unsubscribe
+        out |= {r[0] for r in conn.execute(
+            "SELECT DISTINCT from_addr FROM messages WHERE list_unsubscribe IS NOT NULL")}
     for d in domains or []:
         d = d.lower()
         out |= {r[0] for r in conn.execute(
@@ -96,7 +100,7 @@ def select_senders(conn, senders=None, domains=None, ruleset=None, rule_globs=No
 
 
 def unsub_plan(conn, account, selected: set[str], *, refresh: bool = True, min_messages: int = 3,
-               min_months: int = 2, trust_dkim_signature: bool = False,
+               min_months: int = 2, trust_dkim_signature: bool = False, force: bool = False,
                log: Log = _noop) -> list[unsub.Candidate]:
     cands = unsub.latest_per_sender(conn, selected)
     stale = [c for c in cands if c.hdr_version < HDR_VERSION and c.list_unsubscribe]
@@ -110,7 +114,7 @@ def unsub_plan(conn, account, selected: set[str], *, refresh: bool = True, min_m
     done = db.unsubscribed(conn)
     for c in cands:
         unsub.classify(c, min_messages=min_messages, min_months=min_months,
-                       trust_dkim_signature=trust_dkim_signature, done=done)
+                       trust_dkim_signature=trust_dkim_signature, done=done, force=force)
     return cands
 
 

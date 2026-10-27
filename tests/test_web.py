@@ -110,3 +110,19 @@ def test_one_job_at_a_time(app, monkeypatch):
 def test_make_account_unknown_provider():
     with pytest.raises(ValueError):
         make_account("a@sconosciuto.example")
+
+
+def test_unsubscribe_force_via_api(app, monkeypatch):
+    c = TestClient(app)
+    c.post("/api/unsubscribe/plan", json={"all": True, "force": True}, headers=H(app))
+    by = {x["sender"]: x for x in wait(c)["result"]["candidates"]}
+    assert by["deals@aliexpress.com"]["safe"] and by["deals@aliexpress.com"]["warnings"]
+
+    c.post("/api/account", json={"user": "a@libero.it", "password": "pw"}, headers=H(app))
+    monkeypatch.setattr(un, "do_one_click", lambda url: (True, "HTTP 200"))
+    monkeypatch.setattr(un.time, "sleep", lambda s: None)
+    c.post("/api/unsubscribe/execute", json={"senders": ["deals@aliexpress.com"]}, headers=H(app))
+    assert wait(c)["result"]["ok"] == 0  # senza force il server lo scarta
+    c.post("/api/unsubscribe/execute", json={"senders": ["deals@aliexpress.com"], "force": True},
+           headers=H(app))
+    assert wait(c)["result"]["ok"] == 1

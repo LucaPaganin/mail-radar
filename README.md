@@ -135,6 +135,17 @@ restrittivo. Un mittente viene disiscritto in automatico solo se **tutte** quest
 5. non hai mai risposto o messo la stella a quel mittente;
 6. l'URL è https verso un host pubblico.
 
+**Modalità forzata.** `--all` seleziona tutti i mittenti con `List-Unsubscribe`, `--force` trasforma i
+controlli 3–5 in semplici avvisi (nella GUI: pulsante "Tutti i mittenti" e casella "forza"):
+
+```bash
+mail-radar unsubscribe --all --force            # dry-run: i forzati sono segnalati
+mail-radar unsubscribe --all --force --execute
+```
+
+Anche forzando restano esclusi i mittenti senza metodo automatizzabile, gli URL non https o verso indirizzi
+privati (un link in una mail di spam non deve poter colpire router o NAS di casa) e quelli già elaborati.
+
 I link che portano a una pagina web (senza one-click) non vengono mai aperti: `--manual-out links.tsv`
 li esporta da aprire a mano. Ogni tentativo finisce nella tabella `unsubscribes` e non viene ripetuto.
 `--trash` sposta nel cestino le mail esistenti dei mittenti disiscritti con successo.

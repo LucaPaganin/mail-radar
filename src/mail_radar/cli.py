@@ -204,32 +204,34 @@ def unsubscribe(
     trash: Annotated[bool, typer.Option("--trash", help="Dopo una disiscrizione riuscita sposta nel cestino le mail di quel mittente")] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y")] = False,
     manual_out: Annotated[Path | None, typer.Option(help="Scrivi qui i link da aprire a mano")] = None,
+    all_senders: Annotated[bool, typer.Option("--all", help="Seleziona tutti i mittenti con List-Unsubscribe")] = False,
+    force: Annotated[bool, typer.Option("--force", help="Ignora i controlli di autenticità, storico e interazioni")] = False,
 ):
     """Disiscrizione in blocco, SOLO per mittenti selezionati che passano i controlli di sicurezza.
 
     Esempio:  mail-radar unsubscribe --rules rules.yaml --rule 'newsletter*'
     """
     conn = _conn()
-    if not (sender or domain or rules_file):
-        console.print("[red]Seleziona i mittenti:[/] --sender, --domain oppure --rules/--rule. "
-                      "Per sicurezza non c'è un default 'tutti'.")
+    if not (sender or domain or rules_file or all_senders):
+        console.print("[red]Seleziona i mittenti:[/] --sender, --domain, --rules/--rule oppure --all.")
         raise typer.Exit(2)
     ruleset = rules_mod.load_rules(rules_file) if rules_file else None
-    selected = ops.select_senders(conn, sender, domain, ruleset, rule)
+    selected = ops.select_senders(conn, sender, domain, ruleset, rule, everyone=all_senders)
     if not selected:
         console.print("Nessun mittente selezionato.")
         return
     account = _state["cfg"].account
     cands = ops.unsub_plan(conn, account, selected, refresh=refresh, min_messages=min_messages,
                            min_months=min_months, trust_dkim_signature=trust_dkim_signature,
-                           log=console.print)
+                           force=force, log=console.print)
 
     safe = [c for c in cands if c.safe]
     manual = [c for c in cands if c.method == "manual" and not c.interactions]
     t = Table("Mittente", "Mail", "Metodo", "Autenticazione", "Esito")
     for c in sorted(cands, key=lambda c: (not c.safe, -c.n)):
-        t.add_row(c.sender, str(c.n), c.method, c.auth or "—",
-                  "[green]ok[/]" if c.safe else f"[yellow]{'; '.join(c.reasons)}[/]")
+        esito = ("[green]ok[/]" if not c.warnings else f"[magenta]forzato: {'; '.join(c.warnings)}[/]") \
+            if c.safe else f"[yellow]{'; '.join(c.reasons)}[/]"
+        t.add_row(c.sender, str(c.n), c.method, c.auth or "—", esito)
     console.print(t)
     reasons: dict[str, int] = defaultdict(int)
     for c in cands:
@@ -252,6 +254,9 @@ def unsubscribe(
     if not execute:
         console.print("[cyan]Dry-run.[/] Aggiungi --execute per disiscriverti dai mittenti 'ok'.")
         return
+    forced = sum(bool(c.warnings) for c in safe)
+    if forced:
+        console.print(f"[magenta]{forced} mittenti sono inclusi solo grazie a --force.[/]")
     if not yes and not typer.confirm(f"Disiscriversi da {len(safe)} mittenti?"):
         raise typer.Abort()
     res = ops.unsub_execute(conn, _account(), cands, trash=trash, log=console.print)

@@ -129,7 +129,8 @@ class Candidate:
     method: str = "none"          # one-click | mailto | manual | none
     target: str | None = None
     auth: str | None = None
-    reasons: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)   # bloccanti
+    warnings: list[str] = field(default_factory=list)  # controlli scavalcati con force
 
     @property
     def safe(self) -> bool:
@@ -162,8 +163,12 @@ def latest_per_sender(conn, senders: set[str]) -> list[Candidate]:
 
 
 def classify(c: Candidate, *, min_messages: int = 3, min_months: int = 2,
-             trust_dkim_signature: bool = False, done: dict | None = None) -> Candidate:
-    c.reasons = []
+             trust_dkim_signature: bool = False, done: dict | None = None,
+             force: bool = False) -> Candidate:
+    """Con force=True i controlli di prudenza (autenticità, storico, interazioni) diventano
+    avvisi. Restano bloccanti solo i limiti tecnici: nessun metodo automatizzabile, URL non
+    https o verso la rete locale, mittente già elaborato."""
+    c.reasons, c.warnings = [], []
     uris = parse_list_unsubscribe(c.list_unsubscribe)
     https = [u for u in uris if u.lower().startswith("https://")]
     mailto = [u for u in uris if u.lower().startswith("mailto:")]
@@ -185,13 +190,14 @@ def classify(c: Candidate, *, min_messages: int = 3, min_months: int = 2,
         c.reasons.append("solo link a pagina web (da aprire a mano)")
     if c.method == "one-click" and not _public_https(c.target or ""):
         c.reasons.append("URL non https/pubblico")
+    soft = c.warnings if force else c.reasons
     c.auth = auth_verdict(c.auth_results, c.domain, c.dkim_domains, trust_dkim_signature)
     if not c.auth:
-        c.reasons.append("autenticità non verificata (né DMARC né DKIM allineato)")
+        soft.append("autenticità non verificata (né DMARC né DKIM allineato)")
     if c.n < min_messages or c.months_active < min_months:
-        c.reasons.append(f"storico breve ({c.n} mail, {c.months_active} mesi)")
+        soft.append(f"storico breve ({c.n} mail, {c.months_active} mesi)")
     if c.interactions:
-        c.reasons.append("hai risposto o messo la stella a questo mittente")
+        soft.append("hai risposto o messo la stella a questo mittente")
     return c
 
 

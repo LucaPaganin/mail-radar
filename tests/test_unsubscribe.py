@@ -153,3 +153,27 @@ def test_migration_adds_columns(tmp_path):
     conn = db.connect(p)
     row = conn.execute("SELECT hdr_version, auth_results FROM messages").fetchone()
     assert tuple(row) == (1, None)
+
+
+def test_force_overrides_soft_checks_only():
+    conn = db.connect(":memory:")
+    generate(conn, months=6)
+    from mail_radar import ops
+
+    everyone = ops.select_senders(conn, everyone=True)
+    assert "deals@aliexpress.com" in everyone and "mario.rossi@gmail.com" not in everyone
+    cs = {c.sender: c for c in ops.unsub_plan(conn, None, everyone, force=True)}
+    ali = cs["deals@aliexpress.com"]
+    assert ali.safe and any("autenticità" in w for w in ali.warnings)
+    assert not cs["info@ikea.it"].safe  # solo link web: niente da automatizzare
+    assert not cs["newsletter@zalando.it"].warnings
+
+
+def test_force_still_blocks_private_urls():
+    c = un.Candidate(sender="a@x.it", domain="x.it", name=None, n=1, months_active=1,
+                     interactions=1, folder="INBOX", uidvalidity=1, uid=1,
+                     list_unsubscribe="<https://192.168.1.1/u>",
+                     list_unsubscribe_post="List-Unsubscribe=One-Click",
+                     auth_results=None, dkim_domains=None, hdr_version=2)
+    un.classify(c, force=True)
+    assert not c.safe and c.reasons == ["URL non https/pubblico"]

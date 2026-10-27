@@ -88,7 +88,7 @@ class JobRunner:
 def _cand_dict(c) -> dict:
     return {"sender": c.sender, "name": c.name, "n": c.n, "months": c.months_active,
             "method": c.method, "target": c.target, "auth": c.auth, "reasons": c.reasons,
-            "safe": c.safe}
+            "warnings": c.warnings, "safe": c.safe}
 
 
 def create_app(db_path: Path | str, account: Account | None = None,
@@ -272,7 +272,7 @@ def create_app(db_path: Path | str, account: Account | None = None,
     def selection(c, data: dict) -> set[str]:
         rs = parse(data["text"]) if data.get("rule_globs") and data.get("text") else None
         sel = ops.select_senders(c, data.get("senders"), data.get("domains"), rs,
-                                 data.get("rule_globs"))
+                                 data.get("rule_globs"), everyone=bool(data.get("all")))
         if not sel:
             raise HTTPException(400, "Nessun mittente selezionato")
         return sel
@@ -280,7 +280,8 @@ def create_app(db_path: Path | str, account: Account | None = None,
     def plan_kwargs(data: dict) -> dict:
         return {"min_messages": int(data.get("min_messages", 3)),
                 "min_months": int(data.get("min_months", 2)),
-                "trust_dkim_signature": bool(data.get("trust_dkim_signature"))}
+                "trust_dkim_signature": bool(data.get("trust_dkim_signature")),
+                "force": bool(data.get("force"))}
 
     @app.post("/api/unsubscribe/plan")
     def unsub_plan(data: dict = Body(...)):
@@ -306,7 +307,7 @@ def create_app(db_path: Path | str, account: Account | None = None,
 
         def run(j: Job):
             c = job_conn()
-            # riclassifica lato server: la GUI non può forzare mittenti non sicuri
+            # riclassifica lato server con le stesse opzioni (incluso force) scelte nella GUI
             cands = ops.unsub_plan(c, acc, senders, refresh=False, **plan_kwargs(data))
             skipped = [x.sender for x in cands if not x.safe]
             if skipped:

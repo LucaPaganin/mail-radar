@@ -245,12 +245,15 @@ dialog .df { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 1
         <span class="hint">Mittenti presi dalle regole il cui nome corrisponde a</span>
         <input type="text" id="ruleglob" value="newsletter*" style="width:160px">
         <button class="primary" id="planrules">Analizza</button>
+        <span class="hint">oppure</span>
+        <button class="ghost" id="planall">Tutti i mittenti con unsubscribe</button>
         <span class="hint" id="selfrom"></span>
       </div>
       <div class="controls">
         <span class="hint">min. mail</span><input type="number" id="minmsg" value="3" min="1">
         <span class="hint">min. mesi</span><input type="number" id="minmon" value="2" min="1">
         <label class="hint"><input type="checkbox" id="trustdkim"> accetta firma DKIM non verificata</label>
+        <label class="hint"><input type="checkbox" id="force"> <b>forza</b>: ignora autenticità, storico e interazioni</label>
       </div>
       <p class="hint">Si procede solo con mittenti autenticati (DMARC pass o DKIM allineato), con storico, senza tue risposte o stelle,
         e con metodo standard: <b>one-click</b> (RFC 8058) o <b>mailto</b>. I link a pagine web vanno aperti a mano.</p>
@@ -621,8 +624,11 @@ $("#applyrules").onclick = async () => {
 
 /* ── disiscrizioni ── */
 let PLAN = [];
-const unsubOpts = () => ({ min_messages: +$("#minmsg").value || 3, min_months: +$("#minmon").value || 2, trust_dkim_signature: $("#trustdkim").checked });
+const unsubOpts = () => ({ min_messages: +$("#minmsg").value || 3, min_months: +$("#minmon").value || 2,
+  trust_dkim_signature: $("#trustdkim").checked, force: $("#force").checked });
+let LASTSEL = null;
 async function planUnsub(sel) {
+  LASTSEL = sel;
   const prev = $("#plan").innerHTML;
   $("#plan").innerHTML = '<tr><td class="empty">Analisi in corso…</td></tr>';
   const started = await startJob("/api/unsubscribe/plan", { ...sel, ...unsubOpts() }, j => {
@@ -631,6 +637,8 @@ async function planUnsub(sel) {
   });
   if (!started) $("#plan").innerHTML = prev;
 }
+$("#planall").onclick = () => { $("#selfrom").textContent = "tutti i mittenti con List-Unsubscribe"; planUnsub({ all: true }); };
+$("#force").onchange = () => { if (LASTSEL) planUnsub(LASTSEL); };
 $("#planrules").onclick = () => {
   $("#selfrom").textContent = "dalle regole nell'editor";
   planUnsub({ text: $("#yaml").value, rule_globs: [$("#ruleglob").value || "*"] });
@@ -639,7 +647,8 @@ const METHOD = { "one-click": "one-click", mailto: "mailto", manual: "link web",
 function renderPlan() {
   PLAN.sort((a, b) => (b.safe - a.safe) || (b.n - a.n));
   const safe = PLAN.filter(c => c.safe);
-  $("#plansum").textContent = `${safe.length} su ${PLAN.length} disiscrivibili in automatico`;
+  const nf = safe.filter(c => c.warnings && c.warnings.length).length;
+  $("#plansum").textContent = `${safe.length} su ${PLAN.length} disiscrivibili in automatico` + (nf ? ` (${nf} forzati)` : "");
   $("#plan").innerHTML = `<tr><th><input type="checkbox" id="pall" checked aria-label="tutti"></th><th>Mittente</th><th class="num">Mail</th><th>Metodo</th><th>Autenticazione</th><th>Esito</th></tr>` +
     (PLAN.map((c, i) => `<tr class="${c.safe ? "" : "off"}">
       <td><input type="checkbox" data-i="${i}" ${c.safe ? "checked" : "disabled"}></td>
@@ -647,7 +656,8 @@ function renderPlan() {
       <td class="num">${fmtN(c.n)}</td>
       <td><span class="badge ${c.safe ? "keep" : "muted"}">${METHOD[c.method]}</span></td>
       <td class="hint">${esc(c.auth || "—")}</td>
-      <td>${c.safe ? '<span class="ok">ok</span>' : `<span class="hint">${esc(c.reasons.join("; "))}</span>`}
+      <td>${c.safe ? (c.warnings && c.warnings.length ? `<span style="color:var(--maybe)">forzato</span> <span class="hint">${esc(c.warnings.join("; "))}</span>` : '<span class="ok">ok</span>')
+                   : `<span class="hint">${esc(c.reasons.join("; "))}</span>`}
         ${c.method === "manual" && c.target && /^https?:/.test(c.target) ? ` <a class="btn" href="${esc(c.target)}" target="_blank" rel="noopener noreferrer">apri link</a>` : ""}</td></tr>`).join("")
      || `<tr><td colspan="6" class="empty">Nessun candidato</td></tr>`);
   $("#pall").onchange = e => { $("#plan").querySelectorAll("[data-i]:not(:disabled)").forEach(cb => cb.checked = e.target.checked); updPlan(); };
@@ -661,6 +671,7 @@ $("#dounsub").onclick = async () => {
   const mails = cs.reduce((a, c) => a + c.n, 0);
   const ok = await confirmBox(`Disiscriversi da ${cs.length} mittenti?`,
     `<p>${cs.filter(c => c.method === "one-click").length} via one-click, ${cs.filter(c => c.method === "mailto").length} via mailto (inviato dal tuo indirizzo).</p>
+     ${cs.some(c => c.warnings && c.warnings.length) ? `<p>Di cui <b>${cs.filter(c => c.warnings && c.warnings.length).length}</b> forzati: mittenti non verificati o di cui hai risposto/messo la stella.</p>` : ""}
      ${trash ? `<p>Poi verranno spostate nel cestino le loro <b>${fmtN(mails)}</b> mail esistenti (escluse stelle e risposte).</p>` : ""}
      <p class="hint">La disiscrizione non si può annullare da qui.</p>`, "Disiscrivi");
   if (ok) startJob("/api/unsubscribe/execute", { senders: cs.map(c => c.sender), trash, ...unsubOpts() }, () => {
