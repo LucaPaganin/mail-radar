@@ -111,6 +111,27 @@ def scan_folder(
     return {"folder": folder, "new": len(new_uids), "removed": removed, "total": len(server_uids)}
 
 
+def refresh_headers(client, conn, targets: list[dict]) -> int:
+    """Riscarica gli header (set corrente) per messaggi specifici: [{folder, uidvalidity, uid}]."""
+    by_folder: dict[str, list[dict]] = {}
+    for t in targets:
+        by_folder.setdefault(t["folder"], []).append(t)
+    n = 0
+    for folder, ts in by_folder.items():
+        info = client.select_folder(folder, readonly=True)
+        uidvalidity = int(info[b"UIDVALIDITY"])
+        uids = [t["uid"] for t in ts if t["uidvalidity"] == uidvalidity]
+        for chunk in _chunks(uids, BATCH):
+            resp = client.fetch(chunk, [f"BODY.PEEK[HEADER.FIELDS ({HEADER_FIELDS})]"])
+            for uid, data in resp.items():
+                rec = parse_header_block(_header_bytes(data))
+                rec.pop("date", None)  # senza INTERNALDATE non sovrascriviamo la data
+                db.update_headers(conn, folder, uidvalidity, int(uid), rec)
+                n += 1
+        conn.commit()
+    return n
+
+
 def find_trash(client, configured: str | None = None) -> str:
     if configured:
         return configured

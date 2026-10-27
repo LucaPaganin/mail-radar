@@ -25,6 +25,24 @@ SENDERS = [
 ]
 
 
+def _unsub_headers(addr: str, bulk: bool) -> dict:
+    dom = addr.split("@")[1]
+    auth = f"mx.libero.it; dkim=pass header.d={dom}; spf=pass; dmarc=pass header.from={dom}"
+    out = {"hdr_version": 2, "auth_results": auth, "dkim_domains": dom}
+    if not bulk:
+        return out
+    if "aliexpress" in dom:  # nessuna autenticazione allineata
+        out["auth_results"] = "mx.libero.it; dkim=pass header.d=bulkmailer.example; dmarc=fail"
+    if "ikea" in dom:  # solo link a pagina web
+        return out
+    if "trenitalia" in dom:  # solo mailto
+        out["list_unsubscribe"] = f"<mailto:unsub@{dom}?subject=unsubscribe>"
+        return out
+    out["list_unsubscribe"] = f"<https://{dom}/unsub?t=demo>, <mailto:unsub@{dom}>"
+    out["list_unsubscribe_post"] = "List-Unsubscribe=One-Click"
+    return out
+
+
 def generate(conn, months: int = 18, seed: int = 42) -> int:
     rnd = random.Random(seed)
     now = datetime.now(UTC)
@@ -47,6 +65,8 @@ def generate(conn, months: int = 18, seed: int = 42) -> int:
                 "list_unsubscribe": f"<https://{addr.split('@')[1]}/unsub>" if bulk else None,
                 "list_id": None, "precedence": "bulk" if bulk else None,
                 "multipart_mixed": int(not bulk and rnd.random() < 0.3),
+                # varietà per la demo di `unsubscribe`: one-click, mailto, solo link, auth assente
+                **_unsub_headers(addr, bulk),
             })
     db.upsert_messages(conn, rows)
     db.set_folder_state(conn, "INBOX", 1, uid)

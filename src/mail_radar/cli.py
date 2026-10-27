@@ -221,6 +221,139 @@ def rules_apply(
                 console.print("[yellow]Il server non supporta MOVE/UIDPLUS: originali marcati \\Deleted, non espunti.[/]")
 
 
+def _select_senders(conn, senders, domains, rules_file, rule_globs) -> set[str]:
+    import fnmatch
+
+    out: set[str] = {s.lower() for s in senders or []}
+    for d in domains or []:
+        d = d.lower()
+        out |= {r[0] for r in conn.execute(
+            "SELECT DISTINCT from_addr FROM messages WHERE from_domain = ? OR from_domain LIKE ?",
+            (d, f"%.{d}"))}
+    if rules_file:
+        globs = rule_globs or ["*"]
+        for m in rules_mod.evaluate(conn, rules_mod.load_rules(rules_file)):
+            if any(fnmatch.fnmatch(m["rule"].lower(), g.lower()) for g in globs):
+                out.add(m["from_addr"])
+    out.discard(None)
+    return out
+
+
+@app.command()
+def unsubscribe(
+    sender: Annotated[list[str] | None, typer.Option("--sender", "-s", help="Indirizzo (ripetibile)")] = None,
+    domain: Annotated[list[str] | None, typer.Option("--domain", "-d", help="Dominio (ripetibile)")] = None,
+    rules_file: Annotated[Path | None, typer.Option("--rules", help="File di regole da cui prendere i mittenti")] = None,
+    rule: Annotated[list[str] | None, typer.Option("--rule", "-r", help="Glob sul nome regola, es. 'newsletter*'")] = None,
+    min_messages: int = 3,
+    min_months: int = 2,
+    trust_dkim_signature: Annotated[bool, typer.Option(help="Accetta la firma DKIM allineata anche senza Authentication-Results (più debole)")] = False,
+    refresh: Annotated[bool, typer.Option("--refresh/--no-refresh", help="Riscarica gli header estesi dell'ultima mail dei candidati")] = True,
+    execute: Annotated[bool, typer.Option("--execute", help="Esegui davvero (default: dry-run)")] = False,
+    trash: Annotated[bool, typer.Option("--trash", help="Dopo una disiscrizione riuscita sposta nel cestino le mail di quel mittente")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y")] = False,
+    manual_out: Annotated[Path | None, typer.Option(help="Scrivi qui i link da aprire a mano")] = None,
+):
+    """Disiscrizione in blocco, SOLO per mittenti selezionati che passano i controlli di sicurezza.
+
+    Esempio:  mail-radar unsubscribe --rules rules.yaml --rule 'newsletter*'
+    """
+    from . import unsubscribe as unsub
+    from .headers import HDR_VERSION
+
+    conn = _conn()
+    if not (sender or domain or rules_file):
+        console.print("[red]Seleziona i mittenti:[/] --sender, --domain oppure --rules/--rule. "
+                      "Per sicurezza non c'è un default 'tutti'.")
+        raise typer.Exit(2)
+    selected = _select_senders(conn, sender, domain, rules_file, rule)
+    if not selected:
+        console.print("Nessun mittente selezionato.")
+        return
+    cands = unsub.latest_per_sender(conn, selected)
+
+    stale = [c for c in cands if c.hdr_version < HDR_VERSION and c.list_unsubscribe]
+    if stale and refresh:
+        from .imap import open_client, refresh_headers
+
+        with open_client(_account()) as c:
+            n = refresh_headers(c, conn, [vars(x) for x in stale])
+        console.print(f"Aggiornati gli header estesi di {n} mail.")
+        cands = unsub.latest_per_sender(conn, selected)
+
+    done = db.unsubscribed(conn)
+    for c in cands:
+        unsub.classify(c, min_messages=min_messages, min_months=min_months,
+                       trust_dkim_signature=trust_dkim_signature, done=done)
+
+    safe = [c for c in cands if c.safe]
+    manual = [c for c in cands if c.method == "manual" and not c.interactions]
+    t = Table("Mittente", "Mail", "Metodo", "Autenticazione", "Esito")
+    for c in sorted(cands, key=lambda c: (not c.safe, -c.n)):
+        t.add_row(c.sender, str(c.n), c.method, c.auth or "—",
+                  "[green]ok[/]" if c.safe else f"[yellow]{'; '.join(c.reasons)}[/]")
+    console.print(t)
+    reasons: dict[str, int] = defaultdict(int)
+    for c in cands:
+        for r in c.reasons:
+            reasons[r.split(" (")[0]] += 1
+    console.print(f"[bold]{len(safe)}[/] su {len(cands)} mittenti disiscrivibili in automatico "
+                  f"({sum(c.method == 'one-click' for c in safe)} one-click, "
+                  f"{sum(c.method == 'mailto' for c in safe)} mailto).")
+    for r, k in sorted(reasons.items(), key=lambda x: -x[1]):
+        console.print(f"  scartati: {k:4d}  {r}")
+    if manual:
+        if manual_out:
+            manual_out.write_text("\n".join(f"{c.sender}\t{c.target}" for c in manual) + "\n", encoding="utf-8")
+            console.print(f"{len(manual)} link da aprire a mano scritti in {manual_out}")
+        else:
+            console.print(f"{len(manual)} mittenti hanno solo un link web: usa --manual-out per esportarli.")
+
+    if not safe:
+        return
+    if not execute:
+        console.print("[cyan]Dry-run.[/] Aggiungi --execute per disiscriverti dai mittenti 'ok'.")
+        return
+    if not yes and not typer.confirm(f"Disiscriversi da {len(safe)} mittenti?"):
+        raise typer.Abort()
+
+    def report(c, ok, detail):
+        console.print(f"{'[green]✓[/]' if ok else '[red]✗[/]'} {c.sender}: {detail}")
+
+    results = unsub.execute(conn, safe, _account(), progress=report)
+    ok_senders = [c.sender for c, ok, _ in results if ok]
+    console.print(f"Riuscite {len(ok_senders)} su {len(results)}. Log nella tabella 'unsubscribes'.")
+
+    if trash and ok_senders:
+        from .imap import find_trash, open_client
+
+        ph = ",".join("?" * len(ok_senders))
+        ms = [dict(r) for r in conn.execute(
+            f"SELECT folder, uid, from_addr, subject FROM messages WHERE from_addr IN ({ph}) "
+            "AND flagged = 0 AND answered = 0", ok_senders)]
+        with open_client(_account()) as c:
+            _move_to(c, conn, ms, find_trash(c, _account().trash_folder), "unsubscribe")
+
+
+def _move_to(client, conn, ms: list[dict], dest: str, rule: str) -> None:
+    from .imap import move_uids
+
+    by_folder: dict[str, list[dict]] = defaultdict(list)
+    for m in ms:
+        by_folder[m["folder"]].append(m)
+    for folder, fms in by_folder.items():
+        if folder == dest:
+            continue
+        uids = [m["uid"] for m in fms]
+        for i in range(0, len(uids), 500):
+            how = move_uids(client, folder, uids[i:i + 500], dest)
+        db.log_actions(conn, [{"rule": rule, "action": f"trash->{dest}", "folder": folder,
+                               "uid": m["uid"], "from_addr": m["from_addr"],
+                               "subject": m["subject"]} for m in fms])
+        db.delete_uids(conn, folder, uids)
+        console.print(f"{folder} → {dest}: {len(uids)} mail ({how})")
+
+
 @app.command()
 def dashboard(
     host: str = "127.0.0.1",

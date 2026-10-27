@@ -14,6 +14,14 @@ PRESETS: dict[str, tuple[str, int]] = {
     "yahoo": ("imap.mail.yahoo.com", 993),
     "icloud": ("imap.mail.me.com", 993),
 }
+# SMTP usato solo per gli unsubscribe via mailto. Porta 465 = SSL, altrimenti STARTTLS.
+SMTP_PRESETS: dict[str, tuple[str, int]] = {
+    "imapmail.libero.it": ("smtp.libero.it", 465),
+    "imap.gmail.com": ("smtp.gmail.com", 465),
+    "outlook.office365.com": ("smtp.office365.com", 587),
+    "imap.mail.yahoo.com": ("smtp.mail.yahoo.com", 465),
+    "imap.mail.me.com": ("smtp.mail.me.com", 587),
+}
 
 DEFAULT_CONFIG_PATHS = [
     Path("mail-radar.toml"),
@@ -30,8 +38,16 @@ class Account:
     ssl: bool = True
     folders: list[str] = field(default_factory=lambda: ["INBOX"])
     trash_folder: str | None = None  # None = autodetect (\Trash special-use)
+    smtp_host: str | None = None
+    smtp_port: int = 465
+    _pw: str | None = field(default=None, repr=False)
 
     def password(self) -> str:
+        if self._pw is None:
+            self._pw = self._read_password()
+        return self._pw
+
+    def _read_password(self) -> str:
         pw = os.environ.get("MAIL_RADAR_PASSWORD")
         if pw:
             return pw
@@ -87,6 +103,9 @@ def load_config(path: Path | None = None) -> Config:
             folders=acc.get("folders", ["INBOX"]),
             trash_folder=acc.get("trash_folder"),
         )
+        smtp_default = SMTP_PRESETS.get(host, (None, 465))
+        account.smtp_host = acc.get("smtp_host", smtp_default[0])
+        account.smtp_port = int(acc.get("smtp_port", smtp_default[1]))
 
     db_path = Path(
         os.environ.get("MAIL_RADAR_DB", data.get("db_path", str(DEFAULT_DB)))

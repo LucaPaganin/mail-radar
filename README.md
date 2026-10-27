@@ -7,6 +7,7 @@ flag, `List-Unsubscribe`…). Nessun corpo dei messaggi viene scaricato.
 - **insight**: classifica mittenti con punteggio "spazzatura", volumi nel tempo, orari, domini
 - **dashboard** web locale (nessuna dipendenza esterna, gira su `127.0.0.1`)
 - **regole** YAML con dry-run di default; le mail vengono solo **spostate** nel cestino, mai cancellate
+- **unsubscribe** in blocco, solo per mittenti autenticati (DMARC/DKIM) via one-click RFC 8058 o mailto
 - **export** del riepilogo mittenti in JSON/CSV, da passare a un LLM per farsi scrivere le regole
 
 Testato pensando a Libero Mail, funziona con qualsiasi server IMAP.
@@ -96,6 +97,34 @@ rules:
 Tra chiavi diverse vale AND, dentro una lista vale OR. Ogni mail è assegnata alla prima regola che la
 colpisce: regole `keep` in cima fanno da whitelist (fatture, mittenti personali) e proteggono quelle mail
 dalle regole generiche più sotto. Le azioni eseguite finiscono nella tabella `actions_log` della cache.
+
+## Disiscrizione in blocco
+
+```bash
+mail-radar unsubscribe --rules rules.yaml --rule 'newsletter*'      # dry-run
+mail-radar unsubscribe --rules rules.yaml --rule 'newsletter*' --execute --trash
+mail-radar unsubscribe -s news@brand.it -d altrobrand.com          # selezione puntuale
+```
+
+Disiscriversi da spam vero conferma che l'indirizzo è attivo, quindi il comando è volutamente
+restrittivo. Un mittente viene disiscritto in automatico solo se **tutte** queste condizioni valgono:
+
+1. l'hai selezionato tu (`--sender`, `--domain`, oppure le regole il cui nome corrisponde a `--rule`);
+   non esiste un default "tutti";
+2. l'ultima mail offre un metodo standard: **one-click RFC 8058** (`List-Unsubscribe-Post`, POST https)
+   oppure **mailto** (inviato via SMTP del tuo provider, es. `smtp.libero.it:465`);
+3. il server di ricezione ne attesta l'autenticità nell'header `Authentication-Results` più in alto
+   (l'unico non falsificabile dal mittente): **DMARC pass**, oppure **DKIM pass** con dominio allineato al From;
+4. c'è uno storico: almeno `--min-messages` mail (3) in `--min-months` mesi diversi (2);
+5. non hai mai risposto o messo la stella a quel mittente;
+6. l'URL è https verso un host pubblico.
+
+I link che portano a una pagina web (senza one-click) non vengono mai aperti: `--manual-out links.tsv`
+li esporta da aprire a mano. Ogni tentativo finisce nella tabella `unsubscribes` e non viene ripetuto.
+`--trash` sposta nel cestino le mail esistenti dei mittenti disiscritti con successo.
+
+Le cache create con la v0.1 non hanno gli header di autenticazione: il comando riscarica automaticamente
+solo quelli dell'ultima mail di ciascun mittente selezionato (`--no-refresh` per evitarlo).
 
 ## Sicurezza
 

@@ -48,13 +48,33 @@ CREATE TABLE IF NOT EXISTS actions_log (
     from_addr TEXT,
     subject   TEXT
 );
+
+CREATE TABLE IF NOT EXISTS unsubscribes (
+    sender  TEXT PRIMARY KEY,
+    ts      TEXT NOT NULL DEFAULT (datetime('now')),
+    method  TEXT,
+    target  TEXT,
+    status  TEXT,           -- ok | error
+    detail  TEXT
+);
 """
+
+# colonne aggiunte dopo la v0.1: migrazione automatica su cache esistenti
+MIGRATIONS = {
+    "list_unsubscribe_post": "TEXT",
+    "auth_results": "TEXT",
+    "dkim_domains": "TEXT",
+    "hdr_version": "INTEGER NOT NULL DEFAULT 1",
+}
 
 MESSAGE_COLUMNS = [
     "folder", "uidvalidity", "uid", "message_id", "from_addr", "from_name", "from_domain",
     "to_addr", "subject", "date", "size", "seen", "answered", "flagged",
-    "list_unsubscribe", "list_id", "precedence", "multipart_mixed",
+    "list_unsubscribe", "list_id", "precedence", "multipart_mixed", *MIGRATIONS,
 ]
+_DEFAULTS = {c: None for c in MESSAGE_COLUMNS} | {
+    "seen": 0, "answered": 0, "flagged": 0, "multipart_mixed": 0, "hdr_version": 1,
+}
 
 
 def connect(path: Path | str) -> sqlite3.Connection:
@@ -63,6 +83,11 @@ def connect(path: Path | str) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(messages)")}
+    for col, ddl in MIGRATIONS.items():
+        if col not in existing:
+            conn.execute(f"ALTER TABLE messages ADD COLUMN {col} {ddl}")
+    conn.commit()
     return conn
 
 
@@ -71,7 +96,33 @@ def upsert_messages(conn: sqlite3.Connection, rows: list[dict]) -> None:
         return
     cols = ", ".join(MESSAGE_COLUMNS)
     ph = ", ".join(f":{c}" for c in MESSAGE_COLUMNS)
-    conn.executemany(f"INSERT OR REPLACE INTO messages ({cols}) VALUES ({ph})", rows)
+    conn.executemany(
+        f"INSERT OR REPLACE INTO messages ({cols}) VALUES ({ph})",
+        [_DEFAULTS | r for r in rows],
+    )
+    conn.commit()
+
+
+def update_headers(conn: sqlite3.Connection, folder: str, uidvalidity: int, uid: int,
+                   rec: dict) -> None:
+    fields = [k for k in rec if k in MESSAGE_COLUMNS and k not in ("folder", "uidvalidity", "uid")]
+    conn.execute(
+        f"UPDATE messages SET {', '.join(f'{k}=?' for k in fields)} "
+        "WHERE folder=? AND uidvalidity=? AND uid=?",
+        [rec[k] for k in fields] + [folder, uidvalidity, uid],
+    )
+
+
+def unsubscribed(conn: sqlite3.Connection) -> dict[str, sqlite3.Row]:
+    return {r["sender"]: r for r in conn.execute("SELECT * FROM unsubscribes WHERE status='ok'")}
+
+
+def log_unsubscribe(conn, sender: str, method: str, target: str, status: str, detail: str) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO unsubscribes(sender, method, target, status, detail) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (sender, method, target, status, detail[:500]),
+    )
     conn.commit()
 
 

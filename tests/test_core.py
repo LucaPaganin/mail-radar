@@ -158,3 +158,15 @@ rules:
 """)
     m = rules.evaluate(conn, rs)
     assert m and all(x["from_addr"] == "auto-confirm@amazon.it" for x in m)
+
+
+def test_refresh_headers_upgrades_old_rows():
+    from mail_radar.imap import refresh_headers
+
+    c = db.connect(":memory:")
+    imap = FakeIMAP()
+    scan_folder(imap, c, "INBOX")
+    c.execute("UPDATE messages SET hdr_version = 1, list_unsubscribe = NULL")
+    n = refresh_headers(imap, c, [{"folder": "INBOX", "uidvalidity": 7, "uid": 1}])
+    row = c.execute("SELECT hdr_version, list_unsubscribe, date FROM messages WHERE uid = 1").fetchone()
+    assert n == 1 and row["hdr_version"] == 2 and row["list_unsubscribe"] and row["date"]
