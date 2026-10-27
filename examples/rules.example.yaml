@@ -1,0 +1,15 @@
+protect_flagged: true
+protect_answered: true
+rules:
+  - name: newsletter non lette e vecchie
+    match:
+      has_unsubscribe: true
+      unread: true
+      older_than_days: 60
+      min_sender_score: 0.6
+    action: trash
+
+  - name: promo e-commerce
+    match:
+      from_domain: [aliexpress.com, zalando.it]
+    action: "move:Promo"

@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mail-radar</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --ink: #1c1d1f; --muted: #6b6f76; --line: #e3e1dc;
+  --accent: #2f5bd3; --junk: #c8452f; --maybe: #d9a21b; --keep: #3c8d5a; --bulk: #8a6fd1;
+  --heat0: #eef0f4; --heat1: #2f5bd3;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131416; --panel: #1c1d20; --ink: #e8e8e6; --muted: #9a9ea6; --line: #2d2f33;
+    --accent: #7c9bff; --junk: #ef7a63; --maybe: #f0c14b; --keep: #6cc38c; --bulk: #b29cf2;
+    --heat0: #23252a; --heat1: #7c9bff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { padding: 20px 24px 8px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+header h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+header h1 span { color: var(--accent); }
+header .period { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+main { padding: 8px 24px 40px; display: grid; gap: 16px; max-width: 1400px; margin: 0 auto; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.kpi { padding: 12px 14px; }
+.kpi .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: 12px; }
+.kpi.alert .v { color: var(--junk); }
+.row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+.row.even { grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { .row, .row.even { grid-template-columns: 1fr; } }
+.card { padding: 14px 16px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; display: flex; gap: 10px; align-items: center; }
+.card h2 .sp { flex: 1; }
+svg text { fill: var(--muted); font-size: 10px; font-family: var(--mono); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.split { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin: 6px 0 12px; }
+.split div { height: 100%; }
+.split-tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.split-tbl td { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.split-tbl td:not(:first-child) { text-align: right; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.chip, button, select, input[type=search] {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+input[type=search] { border-radius: 6px; cursor: text; min-width: 220px; }
+.chip.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); border-radius: 6px; }
+button:disabled { opacity: .45; cursor: default; }
+.tbl-wrap { overflow: auto; max-height: 560px; border-top: 1px solid var(--line); }
+table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.data th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 600;
+  font-size: 12px; color: var(--muted); padding: 8px 8px; border-bottom: 1px solid var(--line);
+  cursor: pointer; user-select: none; white-space: nowrap; }
+table.data td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+td.num, th.num { text-align: right; }
+.sender { font-family: var(--mono); font-size: 12.5px; cursor: pointer; }
+.sender:hover { color: var(--accent); text-decoration: underline; }
+.subj { color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; }
+.badge.junk { background: var(--junk); } .badge.maybe { background: var(--maybe); color: #1c1d1f; } .badge.keep { background: var(--keep); }
+.bar { height: 6px; border-radius: 3px; background: var(--line); width: 60px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+textarea { width: 100%; min-height: 220px; font: 12.5px/1.5 var(--mono); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
+.hint { color: var(--muted); font-size: 12px; }
+code { font-family: var(--mono); font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+.err { color: var(--junk); }
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink);
+  width: min(900px, 94vw); max-height: 80vh; padding: 0; }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog .dh { display: flex; padding: 14px 16px; border-bottom: 1px solid var(--line); gap: 10px; align-items: center; }
+dialog .dh b { font-family: var(--mono); flex: 1; overflow: hidden; text-overflow: ellipsis; }
+dialog .db { overflow: auto; max-height: calc(80vh - 60px); }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--panel); font-size: 12px;
+  padding: 4px 8px; border-radius: 4px; display: none; z-index: 10; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1>mail<span>·</span>radar</h1>
+  <div class="period" id="period"></div>
+</header>
+<main id="main">
+  <section class="kpis" id="kpis"></section>
+
+  <section class="row">
+    <div class="card">
+      <h2>Volume mensile</h2>
+      <div id="monthly"></div>
+      <div class="legend"><span><i style="background:var(--bulk)"></i>bulk / newsletter</span><span><i style="background:var(--accent)"></i>altre</span></div>
+    </div>
+    <div class="card">
+      <h2>Mittenti per etichetta</h2>
+      <div id="split"></div>
+    </div>
+  </section>
+
+  <section class="row even">
+    <div class="card">
+      <h2>Quando arrivano (UTC)</h2>
+      <div id="heat"></div>
+    </div>
+    <div class="card">
+      <h2>Domini più rumorosi</h2>
+      <div id="domains"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Mittenti <span class="sp"></span><span class="hint" id="selinfo"></span></h2>
+    <div class="controls">
+      <button class="chip on" data-by="address">indirizzo</button>
+      <button class="chip" data-by="domain">dominio</button>
+      <span style="width:8px"></span>
+      <button class="chip on" data-label="all">tutti</button>
+      <button class="chip" data-label="junk">junk</button>
+      <button class="chip" data-label="maybe">maybe</button>
+      <button class="chip" data-label="keep">keep</button>
+      <input type="search" id="q" placeholder="Filtra mittente o oggetto…">
+      <span class="sp" style="flex:1"></span>
+      <button class="primary" id="mkrule" disabled>Crea regole dalla selezione</button>
+    </div>
+    <div class="tbl-wrap"><table class="data" id="senders"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Regole <span class="sp"></span><button id="preview">Anteprima sulla cache</button></h2>
+    <textarea id="yaml" spellcheck="false">protect_flagged: true
+protect_answered: true
+rules: []
+</textarea>
+    <p class="hint">La dashboard non tocca la casella. Salva il testo in <code>rules.yaml</code> e applicalo con
+      <code>mail-radar rules apply rules.yaml</code> (dry-run), poi aggiungi <code>--execute</code>.</p>
+    <div id="pres"></div>
+  </section>
+</main>
+
+<dialog id="dlg"><div class="dh"><b id="dlgt"></b><button onclick="dlg.close()">Chiudi</button></div><div class="db" id="dlgb"></div></dialog>
+<div class="tip" id="tip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtN = n => (n ?? 0).toLocaleString("it-IT");
+const fmtMB = b => ((b || 0) / 1048576).toLocaleString("it-IT", {maximumFractionDigits: 1}) + " MB";
+const pct = x => Math.round((x || 0) * 100) + "%";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const api = (p, o) => fetch(p, o).then(async r => { if (!r.ok) throw new Error((await r.json()).detail || r.statusText); return r.json(); });
+
+const tip = $("#tip");
+function bindTip(el, text) {
+  el.addEventListener("mousemove", e => { tip.style.display = "block"; tip.textContent = text;
+    tip.style.left = (e.clientX + 12) + "px"; tip.style.top = (e.clientY + 12) + "px"; });
+  el.addEventListener("mouseleave", () => tip.style.display = "none");
+}
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+
+let S = { by: "address", label: "all", q: "", sort: "rank", dir: -1, rows: [], sel: new Set() };
+
+async function loadOverview() {
+  const o = await api("/api/overview");
+  if (!o.n) { $("#main").innerHTML = '<div class="card empty">Cache vuota. Lancia <code>mail-radar scan</code> oppure <code>mail-radar demo</code>.</div>'; return false; }
+  $("#period").textContent = `${(o.first || "").slice(0, 10)} → ${(o.last || "").slice(0, 10)}`;
+  const j = o.labels.junk;
+  const k = [
+    [fmtN(o.n), "mail in cache"], [fmtMB(o.bytes), "spazio"],
+    [pct(o.unread / o.n), "non lette"], [pct(o.bulk / o.n), "bulk / newsletter"],
+    [fmtN(o.senders), "mittenti"], [fmtN(j.messages), `mail da mittenti junk · ${fmtMB(j.bytes)}`, "alert"],
+  ];
+  $("#kpis").innerHTML = k.map(([v, l, c]) => `<div class="kpi ${c || ""}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+
+  const L = o.labels, tot = L.junk.messages + L.maybe.messages + L.keep.messages || 1;
+  $("#split").innerHTML =
+    `<div class="split">${["junk","maybe","keep"].map(x => `<div style="width:${L[x].messages / tot * 100}%;background:var(--${x})" title="${x}"></div>`).join("")}</div>
+     <table class="split-tbl"><tr><td></td><td class="hint">mittenti</td><td class="hint">mail</td><td class="hint">spazio</td></tr>
+     ${["junk","maybe","keep"].map(x => `<tr><td><span class="badge ${x}">${x}</span></td><td>${fmtN(L[x].senders)}</td><td>${fmtN(L[x].messages)}</td><td>${fmtMB(L[x].bytes)}</td></tr>`).join("")}</table>`;
+  return true;
+}
+
+async function loadMonthly() {
+  const data = await api("/api/monthly");
+  const el = $("#monthly"); el.innerHTML = "";
+  const W = 720, H = 220, pl = 36, pb = 22, pt = 8;
+  const max = Math.max(1, ...data.map(d => d.n));
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%" });
+  const bw = (W - pl) / Math.max(1, data.length);
+  for (let i = 0; i <= 4; i++) {
+    const v = Math.round(max * i / 4), y = H - pb - (H - pb - pt) * i / 4;
+    svg.append(svgEl("line", { x1: pl, x2: W, y1: y, y2: y, stroke: css("--line") }));
+    const t = svgEl("text", { x: pl - 6, y: y + 3, "text-anchor": "end" }); t.textContent = v; svg.append(t);
+  }
+  data.forEach((d, i) => {
+    const x = pl + i * bw + bw * 0.15, w = bw * 0.7, sc = (H - pb - pt) / max;
+    const hb = (d.bulk || 0) * sc, ho = (d.n - (d.bulk || 0)) * sc;
+    const g = svgEl("g", {});
+    g.append(svgEl("rect", { x, y: H - pb - hb, width: w, height: hb, fill: css("--bulk"), rx: 1 }));
+    g.append(svgEl("rect", { x, y: H - pb - hb - ho, width: w, height: ho, fill: css("--accent"), rx: 1 }));
+    g.append(svgEl("rect", { x: pl + i * bw, y: pt, width: bw, height: H - pb - pt, fill: "transparent" }));
+    bindTip(g, `${d.month}: ${d.n} mail · ${d.bulk} bulk · ${d.unread} non lette`);
+    svg.append(g);
+    if (data.length <= 14 || i % Math.ceil(data.length / 12) === 0) {
+      const t = svgEl("text", { x: x + w / 2, y: H - 6, "text-anchor": "middle" }); t.textContent = d.month.slice(2); svg.append(t);
+    }
+  });
+  el.append(svg);
+}
+
+async function loadHeat() {
+  const data = await api("/api/heatmap");
+  const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+  data.forEach(d => grid[d.dow][d.hour] = d.n);
+  const max = Math.max(1, ...data.map(d => d.n));
+  const days = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"], order = [1, 2, 3, 4, 5, 6, 0];
+  const W = 520, cw = (W - 32) / 24, ch = 18, H = 7 * ch + 18;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%" });
+  const c0 = css("--heat0"), c1 = css("--heat1");
+  order.forEach((d, r) => {
+    const t = svgEl("text", { x: 0, y: r * ch + 12 }); t.textContent = days[d]; svg.append(t);
+    for (let h = 0; h < 24; h++) {
+      const v = grid[d][h], a = Math.sqrt(v / max);
+      const rect = svgEl("rect", { x: 32 + h * cw, y: r * ch, width: cw - 2, height: ch - 2, rx: 2,
+        fill: v ? `color-mix(in srgb, ${c1} ${Math.round(15 + a * 85)}%, ${c0})` : c0 });
+      bindTip(rect, `${days[d]} ${String(h).padStart(2, "0")}:00 · ${v} mail`); svg.append(rect);
+    }
+  });
+  for (let h = 0; h < 24; h += 3) { const t = svgEl("text", { x: 32 + h * cw, y: H - 2 }); t.textContent = h; svg.append(t); }
+  $("#heat").innerHTML = ""; $("#heat").append(svg);
+}
+
+async function loadDomains() {
+  const rows = (await api("/api/senders?by=domain")).sort((a, b) => b.n - a.n).slice(0, 10);
+  const max = Math.max(1, ...rows.map(r => r.n));
+  $("#domains").innerHTML = rows.map(r => `
+    <div style="display:grid;grid-template-columns:150px 1fr 48px;gap:8px;align-items:center;margin:5px 0">
+      <span class="sender" data-domain="${esc(r.sender)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.sender)}</span>
+      <div style="height:14px;background:var(--line);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${r.n / max * 100}%;background:var(--${r.label})"></div></div>
+      <span style="text-align:right;font-variant-numeric:tabular-nums">${fmtN(r.n)}</span>
+    </div>`).join("");
+  $("#domains").querySelectorAll("[data-domain]").forEach(e => e.onclick = () => openMessages({ domain: e.dataset.domain }));
+}
+
+async function loadSenders() {
+  S.rows = (await api(`/api/senders?by=${S.by}`)).map((r, i) => ({ ...r, rank: -i }));
+  S.sel.clear(); renderSenders();
+}
+
+const COLS = [
+  ["", null], ["Mittente", "sender"], ["Mail", "n", 1], ["Spazio", "bytes", 1], ["Non lette", "unread_ratio", 1],
+  ["Bulk", "bulk_ratio", 1], ["Risposte", "answered", 1], ["Ultima", "last"], ["Score", "score", 1], ["Esempi", null],
+];
+function renderSenders() {
+  const q = S.q.toLowerCase();
+  let rows = S.rows.filter(r => (S.label === "all" || r.label === S.label) &&
+    (!q || r.sender.includes(q) || (r.name || "").toLowerCase().includes(q) || (r.subjects || []).some(s => (s || "").toLowerCase().includes(q))));
+  rows.sort((a, b) => (a[S.sort] > b[S.sort] ? 1 : a[S.sort] < b[S.sort] ? -1 : 0) * S.dir);
+  const head = "<tr>" + COLS.map(([t, k, n]) => k === null && !t
+      ? `<th><input type="checkbox" id="all"></th>`
+      : `<th class="${n ? "num" : ""}" data-k="${k ?? ""}">${t}${S.sort === k ? (S.dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("") + "</tr>";
+  const body = rows.slice(0, 500).map(r => `<tr>
+    <td><input type="checkbox" data-s="${esc(r.sender)}" ${S.sel.has(r.sender) ? "checked" : ""}></td>
+    <td><div class="sender" data-open="${esc(r.sender)}">${esc(r.sender)}</div><div class="hint">${esc(r.name || "")}</div></td>
+    <td class="num">${fmtN(r.n)}</td><td class="num">${fmtMB(r.bytes)}</td>
+    <td class="num"><span class="bar"><span style="width:${pct(r.unread_ratio)}"></span></span>${pct(r.unread_ratio)}</td>
+    <td class="num">${pct(r.bulk_ratio)}</td><td class="num">${r.answered || ""}</td>
+    <td class="hint">${esc((r.last || "").slice(0, 10))}</td>
+    <td class="num"><span class="badge ${r.label}">${r.score.toFixed(2)}</span></td>
+    <td><div class="subj" title="${esc((r.subjects || []).join(" | "))}">${esc((r.subjects || []).join(" · "))}</div></td></tr>`).join("");
+  $("#senders").innerHTML = head + (body || `<tr><td colspan="10" class="empty">Nessun mittente</td></tr>`);
+  $("#senders").querySelectorAll("th[data-k]").forEach(th => th.onclick = () => {
+    const k = th.dataset.k; if (!k) return; S.dir = S.sort === k ? -S.dir : -1; S.sort = k; renderSenders(); });
+  $("#senders").querySelectorAll("[data-s]").forEach(cb => cb.onchange = () => { cb.checked ? S.sel.add(cb.dataset.s) : S.sel.delete(cb.dataset.s); updSel(); });
+  $("#senders").querySelectorAll("[data-open]").forEach(e => e.onclick = () => openMessages(S.by === "address" ? { sender: e.dataset.open } : { domain: e.dataset.open }));
+  $("#all").onchange = e => { rows.slice(0, 500).forEach(r => e.target.checked ? S.sel.add(r.sender) : S.sel.delete(r.sender)); renderSenders(); };
+  updSel();
+}
+function updSel() {
+  const rows = S.rows.filter(r => S.sel.has(r.sender));
+  $("#selinfo").textContent = rows.length ? `${rows.length} selezionati · ${fmtN(rows.reduce((a, r) => a + r.n, 0))} mail` : "";
+  $("#mkrule").disabled = !rows.length;
+}
+
+async function openMessages(p) {
+  const qs = new URLSearchParams(p).toString();
+  const rows = await api("/api/messages?" + qs);
+  $("#dlgt").textContent = p.sender || p.domain;
+  $("#dlgb").innerHTML = `<table class="data"><tr><th>Data</th><th>Da</th><th>Oggetto</th><th class="num">KB</th><th>Stato</th></tr>${rows.map(m => `<tr>
+    <td class="hint">${esc((m.date || "").slice(0, 16).replace("T", " "))}</td><td class="sender">${esc(m.from_addr)}</td>
+    <td>${esc(m.subject)}</td><td class="num">${Math.round((m.size || 0) / 1024)}</td>
+    <td class="hint">${m.seen ? "letta" : "<b>non letta</b>"}${m.answered ? " · risposta" : ""}${m.flagged ? " · ★" : ""}${m.has_unsub ? " · unsub" : ""}</td></tr>`).join("")}</table>`;
+  $("#dlg").showModal();
+}
+
+function yamlStr(s) { return JSON.stringify(s); }
+$("#mkrule").onclick = () => {
+  const key = S.by === "address" ? "from" : "from_domain";
+  const rows = S.rows.filter(r => S.sel.has(r.sender));
+  let txt = $("#yaml").value.replace(/rules:\s*\[\]\s*$/, "rules:\n");
+  if (!/rules:/.test(txt)) txt += "\nrules:\n";
+  for (const r of rows) {
+    txt += `  - name: ${yamlStr(r.sender)}\n    match:\n      ${key}: [${yamlStr(r.sender)}]\n    action: trash\n`;
+  }
+  $("#yaml").value = txt.replace(/\n{3,}/g, "\n\n");
+  $("#yaml").scrollIntoView({ behavior: "smooth", block: "center" });
+};
+
+$("#preview").onclick = async () => {
+  $("#pres").innerHTML = '<p class="hint">Calcolo…</p>';
+  try {
+    const r = await api("/api/rules/preview", { method: "POST", headers: { "Content-Type": "text/plain" }, body: $("#yaml").value });
+    $("#pres").innerHTML = `<p><b>${fmtN(r.total)}</b> mail corrispondono · ${fmtMB(r.bytes)}</p>
+      <table class="data"><tr><th>Regola</th><th class="num">Mail</th></tr>${r.per_rule.map(x => `<tr><td class="sender">${esc(x.rule)}</td><td class="num">${fmtN(x.n)}</td></tr>`).join("")}</table>`;
+  } catch (e) { $("#pres").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+};
+
+document.querySelectorAll("[data-by]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("[data-by]").forEach(x => x.classList.toggle("on", x === b)); S.by = b.dataset.by; S.sort = "rank"; S.dir = -1; loadSenders(); });
+document.querySelectorAll("[data-label]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("[data-label]").forEach(x => x.classList.toggle("on", x === b)); S.label = b.dataset.label; renderSenders(); });
+$("#q").oninput = e => { S.q = e.target.value; renderSenders(); };
+
+(async () => {
+  if (await loadOverview()) await Promise.all([loadMonthly(), loadHeat(), loadDomains(), loadSenders()]);
+})();
+</script>
+</body>
+</html>

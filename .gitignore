@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# mail-radar: dati personali
+*.db
+mail-radar.toml
+rules.yaml
+senders.json
+senders.csv

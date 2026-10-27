@@ -1,0 +1,6 @@
+# Copia in ./mail-radar.toml o ~/.config/mail-radar/config.toml
+[account]
+user = "nome@libero.it"
+provider = "libero"
+folders = ["INBOX"]
+# trash_folder = "Cestino"
