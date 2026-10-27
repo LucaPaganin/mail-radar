@@ -80,8 +80,10 @@ _DEFAULTS = {c: None for c in MESSAGE_COLUMNS} | {
 def connect(path: Path | str) -> sqlite3.Connection:
     if str(path) != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), check_same_thread=False)
+    conn = sqlite3.connect(str(path), check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
+    if str(path) != ":memory:":
+        conn.execute("PRAGMA journal_mode=WAL")  # la GUI legge mentre un job scrive
     conn.executescript(SCHEMA)
     existing = {r[1] for r in conn.execute("PRAGMA table_info(messages)")}
     for col, ddl in MIGRATIONS.items():

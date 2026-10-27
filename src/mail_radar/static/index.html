@@ -8,24 +8,32 @@
 :root {
   --bg: #f6f5f2; --panel: #ffffff; --ink: #1c1d1f; --muted: #6b6f76; --line: #e3e1dc;
   --accent: #2f5bd3; --junk: #c8452f; --maybe: #d9a21b; --keep: #3c8d5a; --bulk: #8a6fd1;
-  --heat0: #eef0f4; --heat1: #2f5bd3;
+  --heat0: #eef0f4; --heat1: #2f5bd3; --on-accent: #ffffff;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #131416; --panel: #1c1d20; --ink: #e8e8e6; --muted: #9a9ea6; --line: #2d2f33;
     --accent: #7c9bff; --junk: #ef7a63; --maybe: #f0c14b; --keep: #6cc38c; --bulk: #b29cf2;
-    --heat0: #23252a; --heat1: #7c9bff;
+    --heat0: #23252a; --heat1: #7c9bff; --on-accent: #131416;
   }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-header { padding: 20px 24px 8px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+header { padding: 20px 24px 8px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  max-width: 1400px; margin: 0 auto; }
 header h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
 header h1 span { color: var(--accent); }
 header .period { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+nav.tabs { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+nav.tabs button { border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 600;
+  padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button.on { background: var(--ink); color: var(--panel); }
 main { padding: 8px 24px 40px; display: grid; gap: 16px; max-width: 1400px; margin: 0 auto; }
+section.view { display: grid; gap: 16px; }
+section.view[hidden] { display: none; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .kpi { padding: 12px 14px; }
@@ -37,8 +45,8 @@ main { padding: 8px 24px 40px; display: grid; gap: 16px; max-width: 1400px; marg
 @media (max-width: 900px) { .row, .row.even { grid-template-columns: 1fr; } }
 .card { padding: 14px 16px; min-width: 0; }
 .card h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .05em; display: flex; gap: 10px; align-items: center; }
-.card h2 .sp { flex: 1; }
+  text-transform: uppercase; letter-spacing: .05em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.card h2 .sp, .sp { flex: 1; }
 svg text { fill: var(--muted); font-size: 10px; font-family: var(--mono); }
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
@@ -48,13 +56,23 @@ svg text { fill: var(--muted); font-size: 10px; font-family: var(--mono); }
 .split-tbl td { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .split-tbl td:not(:first-child) { text-align: right; }
 .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
-.chip, button, select, input[type=search] {
+.chip, button, select, input[type=search], input[type=text], input[type=password], input[type=email], input[type=number] {
   font: inherit; font-size: 13px; color: var(--ink); background: var(--panel);
   border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
-input[type=search] { border-radius: 6px; cursor: text; min-width: 220px; }
+input[type=search], input[type=text], input[type=password], input[type=email], input[type=number], select {
+  border-radius: 6px; cursor: text; min-width: 0; }
+select { cursor: pointer; }
+input[type=number] { width: 70px; }
+input[type=search] { min-width: 220px; }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chip.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
-button.primary { background: var(--accent); color: #fff; border-color: var(--accent); border-radius: 6px; }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); border-radius: 6px; }
+button.danger { background: var(--junk); color: var(--on-accent); border-color: var(--junk); border-radius: 6px; }
+button.ghost { border-radius: 6px; }
 button:disabled { opacity: .45; cursor: default; }
+a.btn { font-size: 13px; color: var(--ink); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 12px; text-decoration: none; }
+a.btn:hover { border-color: var(--accent); color: var(--accent); }
 .tbl-wrap { overflow: auto; max-height: 560px; border-top: 1px solid var(--line); }
 table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.data th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 600;
@@ -62,102 +80,278 @@ table.data th { position: sticky; top: 0; background: var(--panel); text-align: 
   cursor: pointer; user-select: none; white-space: nowrap; }
 table.data td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.data tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-td.num, th.num { text-align: right; }
+table.data tr.off td { color: var(--muted); }
+td.num, table.data th.num { text-align: right; }
+.card h2 .mono { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .sender { font-family: var(--mono); font-size: 12.5px; cursor: pointer; }
 .sender:hover { color: var(--accent); text-decoration: underline; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
 .subj { color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.badge { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; }
 .badge.junk { background: var(--junk); } .badge.maybe { background: var(--maybe); color: #1c1d1f; } .badge.keep { background: var(--keep); }
+.badge.muted { background: var(--line); color: var(--muted); }
 .bar { height: 6px; border-radius: 3px; background: var(--line); width: 60px; display: inline-block; vertical-align: middle; margin-right: 6px; }
 .bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
-textarea { width: 100%; min-height: 220px; font: 12.5px/1.5 var(--mono); color: var(--ink);
+textarea { width: 100%; min-height: 360px; font: 12.5px/1.5 var(--mono); color: var(--ink);
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
 .hint { color: var(--muted); font-size: 12px; }
 code { font-family: var(--mono); font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .err { color: var(--junk); }
+.ok { color: var(--keep); }
+.form { display: grid; grid-template-columns: max-content 1fr; gap: 8px 12px; align-items: center; max-width: 520px; }
+.form label { color: var(--muted); font-size: 13px; }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; margin: 8px 0 12px; }
+.checks label { display: flex; gap: 6px; align-items: center; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--muted); }
+.status-dot.ok { background: var(--keep); } .status-dot.warn { background: var(--maybe); }
+/* job strip */
+#job { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); display: none; }
+#job .in { max-width: 1400px; margin: 0 auto; padding: 8px 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+#job .pbar { flex: 1; min-width: 160px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+#job .pbar > span { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+#job .pbar.indet > span { width: 30%; animation: indet 1.2s infinite ease-in-out; }
+@keyframes indet { from { margin-left: -30%; } to { margin-left: 100%; } }
+#job pre { margin: 0; max-height: 180px; overflow: auto; font: 12px/1.45 var(--mono); color: var(--muted);
+  white-space: pre-wrap; width: 100%; display: none; }
+#job.showlog pre { display: block; }
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink);
   width: min(900px, 94vw); max-height: 80vh; padding: 0; }
+dialog.small { width: min(480px, 94vw); }
 dialog::backdrop { background: rgba(0,0,0,.35); }
 dialog .dh { display: flex; padding: 14px 16px; border-bottom: 1px solid var(--line); gap: 10px; align-items: center; }
 dialog .dh b { font-family: var(--mono); flex: 1; overflow: hidden; text-overflow: ellipsis; }
+#confirm .dh b { font-family: inherit; }
 dialog .db { overflow: auto; max-height: calc(80vh - 60px); }
+dialog .pad { padding: 16px; }
+dialog .df { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); }
+@media (max-width: 600px) { header, main, #job .in { padding-left: 16px; padding-right: 16px; } }
 .empty { padding: 40px; text-align: center; color: var(--muted); }
 .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--panel); font-size: 12px;
   padding: 4px 8px; border-radius: 4px; display: none; z-index: 10; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
+<div id="job"><div class="in">
+  <b id="jobkind"></b><span class="hint" id="joblabel"></span>
+  <div class="pbar" id="jobbar"><span></span></div>
+  <span class="hint" id="jobcount"></span>
+  <button class="ghost" id="joblogbtn">log</button>
+  <button class="ghost" id="jobclose" hidden>chiudi</button>
+  <pre id="joblog"></pre>
+</div></div>
+
 <header>
   <h1>mail<span>·</span>radar</h1>
   <div class="period" id="period"></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="overview" class="on">Panoramica</button>
+    <button data-tab="scan">Scan</button>
+    <button data-tab="rules">Regole</button>
+    <button data-tab="unsub">Disiscrizioni</button>
+  </nav>
 </header>
-<main id="main">
-  <section class="kpis" id="kpis"></section>
 
-  <section class="row">
-    <div class="card">
-      <h2>Volume mensile</h2>
-      <div id="monthly"></div>
-      <div class="legend"><span><i style="background:var(--bulk)"></i>bulk / newsletter</span><span><i style="background:var(--accent)"></i>altre</span></div>
-    </div>
-    <div class="card">
-      <h2>Mittenti per etichetta</h2>
-      <div id="split"></div>
+<main>
+  <!-- ───────────── PANORAMICA ───────────── -->
+  <section class="view" id="v-overview">
+    <div id="ov-empty" class="card empty" hidden>Cache vuota. Vai su <b>Scan</b> per scaricare gli header della casella.</div>
+    <div id="ov-body" style="display:grid;gap:16px">
+      <section class="kpis" id="kpis"></section>
+      <section class="row">
+        <div class="card">
+          <h2>Volume mensile</h2>
+          <div id="monthly"></div>
+          <div class="legend"><span><i style="background:var(--bulk)"></i>bulk / newsletter</span><span><i style="background:var(--accent)"></i>altre</span></div>
+        </div>
+        <div class="card"><h2>Mittenti per etichetta</h2><div id="split"></div></div>
+      </section>
+      <section class="row even">
+        <div class="card"><h2>Quando arrivano (UTC)</h2><div id="heat"></div></div>
+        <div class="card"><h2>Domini più rumorosi</h2><div id="domains"></div></div>
+      </section>
+      <section class="card">
+        <h2>Mittenti <span class="sp"></span><span class="hint" id="selinfo"></span>
+          <a class="btn" href="/api/export?format=csv">CSV</a><a class="btn" href="/api/export?format=json">JSON</a></h2>
+        <div class="controls">
+          <button class="chip on" data-by="address">indirizzo</button>
+          <button class="chip" data-by="domain">dominio</button>
+          <span style="width:8px"></span>
+          <button class="chip on" data-label="all">tutti</button>
+          <button class="chip" data-label="junk">junk</button>
+          <button class="chip" data-label="maybe">maybe</button>
+          <button class="chip" data-label="keep">keep</button>
+          <input type="search" id="q" placeholder="Filtra mittente o oggetto…">
+          <span class="sp"></span>
+          <button class="ghost" id="mkunsub" disabled>Disiscrivi selezionati</button>
+          <button class="primary" id="mkrule" disabled>Crea regole dalla selezione</button>
+        </div>
+        <div class="tbl-wrap"><table class="data" id="senders"></table></div>
+      </section>
     </div>
   </section>
 
-  <section class="row even">
-    <div class="card">
-      <h2>Quando arrivano (UTC)</h2>
-      <div id="heat"></div>
-    </div>
-    <div class="card">
-      <h2>Domini più rumorosi</h2>
-      <div id="domains"></div>
-    </div>
+  <!-- ───────────── SCAN ───────────── -->
+  <section class="view" id="v-scan" hidden>
+    <section class="row even">
+      <div class="card">
+        <h2>Account</h2>
+        <div id="acc"></div>
+      </div>
+      <div class="card">
+        <h2>Cache locale</h2>
+        <div id="cacheinfo" class="hint">—</div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Cartelle <span class="sp"></span><button class="ghost" id="loadfolders">Carica elenco dal server</button></h2>
+      <div class="checks" id="folders"></div>
+      <div class="controls">
+        <label class="hint"><input type="checkbox" id="fullscan"> riscarica tutto da zero</label>
+        <span class="sp"></span>
+        <button class="primary" id="startscan">Avvia scan</button>
+      </div>
+      <p class="hint">Lo scan legge solo gli header, in sola lettura, senza segnare le mail come lette. È incrementale: le volte successive scarica solo le novità.</p>
+    </section>
   </section>
 
-  <section class="card">
-    <h2>Mittenti <span class="sp"></span><span class="hint" id="selinfo"></span></h2>
-    <div class="controls">
-      <button class="chip on" data-by="address">indirizzo</button>
-      <button class="chip" data-by="domain">dominio</button>
-      <span style="width:8px"></span>
-      <button class="chip on" data-label="all">tutti</button>
-      <button class="chip" data-label="junk">junk</button>
-      <button class="chip" data-label="maybe">maybe</button>
-      <button class="chip" data-label="keep">keep</button>
-      <input type="search" id="q" placeholder="Filtra mittente o oggetto…">
-      <span class="sp" style="flex:1"></span>
-      <button class="primary" id="mkrule" disabled>Crea regole dalla selezione</button>
-    </div>
-    <div class="tbl-wrap"><table class="data" id="senders"></table></div>
+  <!-- ───────────── REGOLE ───────────── -->
+  <section class="view" id="v-rules" hidden>
+    <section class="row">
+      <div class="card">
+        <h2>Regole <span class="sp"></span><span class="hint mono" id="rulespath"></span></h2>
+        <textarea id="yaml" spellcheck="false"></textarea>
+        <div class="controls" style="margin-top:10px">
+          <button class="ghost" id="preview">Anteprima</button>
+          <button class="ghost" id="saverules">Salva</button>
+          <span class="hint" id="rulesmsg"></span>
+          <span class="sp"></span>
+          <button class="danger" id="applyrules">Applica alla casella…</button>
+        </div>
+        <p class="hint">Ogni mail va alla prima regola che la colpisce; <code>action: keep</code> fa da whitelist.
+          Le mail vengono solo <b>spostate</b> nel cestino o in un'altra cartella. Stelle e risposte sono protette di default.</p>
+      </div>
+      <div class="card">
+        <h2>Anteprima</h2>
+        <div id="pres" class="hint">Premi <b>Anteprima</b> per vedere quante mail colpisce ogni regola.</div>
+      </div>
+    </section>
   </section>
 
-  <section class="card">
-    <h2>Regole <span class="sp"></span><button id="preview">Anteprima sulla cache</button></h2>
-    <textarea id="yaml" spellcheck="false">protect_flagged: true
-protect_answered: true
-rules: []
-</textarea>
-    <p class="hint">La dashboard non tocca la casella. Salva il testo in <code>rules.yaml</code> e applicalo con
-      <code>mail-radar rules apply rules.yaml</code> (dry-run), poi aggiungi <code>--execute</code>.</p>
-    <div id="pres"></div>
+  <!-- ───────────── DISISCRIZIONI ───────────── -->
+  <section class="view" id="v-unsub" hidden>
+    <section class="card">
+      <h2>Selezione</h2>
+      <div class="controls">
+        <span class="hint">Mittenti presi dalle regole il cui nome corrisponde a</span>
+        <input type="text" id="ruleglob" value="newsletter*" style="width:160px">
+        <button class="primary" id="planrules">Analizza</button>
+        <span class="hint" id="selfrom"></span>
+      </div>
+      <div class="controls">
+        <span class="hint">min. mail</span><input type="number" id="minmsg" value="3" min="1">
+        <span class="hint">min. mesi</span><input type="number" id="minmon" value="2" min="1">
+        <label class="hint"><input type="checkbox" id="trustdkim"> accetta firma DKIM non verificata</label>
+      </div>
+      <p class="hint">Si procede solo con mittenti autenticati (DMARC pass o DKIM allineato), con storico, senza tue risposte o stelle,
+        e con metodo standard: <b>one-click</b> (RFC 8058) o <b>mailto</b>. I link a pagine web vanno aperti a mano.</p>
+    </section>
+    <section class="card">
+      <h2>Candidati <span class="sp"></span><span class="hint" id="plansum"></span></h2>
+      <div class="tbl-wrap"><table class="data" id="plan"><tr><td class="empty">Nessuna analisi ancora.</td></tr></table></div>
+      <div class="controls" style="margin-top:10px">
+        <label class="hint"><input type="checkbox" id="unsubtrash" checked> sposta nel cestino anche le mail esistenti</label>
+        <span class="sp"></span>
+        <button class="danger" id="dounsub" disabled>Disiscrivi…</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Storico</h2>
+      <div class="tbl-wrap" style="max-height:320px"><table class="data" id="history"></table></div>
+    </section>
   </section>
 </main>
 
 <dialog id="dlg"><div class="dh"><b id="dlgt"></b><button onclick="dlg.close()">Chiudi</button></div><div class="db" id="dlgb"></div></dialog>
+<dialog id="confirm" class="small"><div class="dh"><b id="cft"></b></div><div class="pad" id="cfb"></div>
+  <div class="df"><button class="ghost" id="cfno">Annulla</button><button class="danger" id="cfyes">Conferma</button></div></dialog>
 <div class="tip" id="tip"></div>
 
 <script>
+const TOKEN = "__MR_TOKEN__";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtN = n => (n ?? 0).toLocaleString("it-IT");
 const fmtMB = b => ((b || 0) / 1048576).toLocaleString("it-IT", {maximumFractionDigits: 1}) + " MB";
 const pct = x => Math.round((x || 0) * 100) + "%";
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const api = (p, o) => fetch(p, o).then(async r => { if (!r.ok) throw new Error((await r.json()).detail || r.statusText); return r.json(); });
+async function api(path, opts = {}) {
+  const o = { ...opts, headers: { ...(opts.headers || {}) } };
+  if (o.json !== undefined) { o.body = JSON.stringify(o.json); o.headers["Content-Type"] = "application/json"; delete o.json; }
+  if (o.method && o.method !== "GET") o.headers["X-MR-Token"] = TOKEN;
+  const r = await fetch(path, o);
+  if (!r.ok) { let d; try { d = (await r.json()).detail; } catch { d = r.statusText; } throw new Error(d); }
+  return r.json();
+}
+function confirmBox(title, html, okLabel = "Conferma") {
+  return new Promise(res => {
+    $("#cft").textContent = title; $("#cfb").innerHTML = html; $("#cfyes").textContent = okLabel;
+    const d = $("#confirm");
+    const done = v => { d.close(); $("#cfyes").onclick = $("#cfno").onclick = null; res(v); };
+    $("#cfyes").onclick = () => done(true); $("#cfno").onclick = () => done(false);
+    d.oncancel = () => done(false);
+    d.showModal();
+  });
+}
 
+/* ── tabs ── */
+function showTab(t) {
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  document.querySelectorAll("section.view").forEach(v => v.hidden = v.id !== "v-" + t);
+  try { localStorage.setItem("mr-tab", t); } catch {}
+  if (t === "scan") loadAccount();
+  if (t === "unsub") loadHistory();
+}
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ── job ── */
+const JOBNAMES = { scan: "Scan", rules: "Applicazione regole", "unsubscribe-plan": "Analisi disiscrizioni", unsubscribe: "Disiscrizioni" };
+let pollT = null, onJobDone = {};
+function renderJob(j) {
+  const el = $("#job");
+  if (!j) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  const p = j.progress || {};
+  $("#jobkind").innerHTML = (j.status === "running" ? "" : j.status === "done" ? '<span class="ok">✓</span> ' : '<span class="err">✗</span> ') + esc(JOBNAMES[j.kind] || j.kind);
+  $("#joblabel").textContent = j.status === "error" ? j.error : (p.label || (j.log || []).slice(-1)[0] || "");
+  const bar = $("#jobbar");
+  const frac = j.status !== "running" ? 1 : (p.total ? p.done / p.total : null);
+  bar.classList.toggle("indet", frac === null);
+  bar.firstElementChild.style.width = frac === null ? "" : (frac * 100) + "%";
+  $("#jobcount").textContent = p.total && j.status === "running" ? `${fmtN(p.done)} / ${fmtN(p.total)}` : `${j.elapsed}s`;
+  $("#joblog").textContent = (j.log || []).join("\n");
+  $("#jobclose").hidden = j.status === "running";
+}
+async function pollJob() {
+  clearTimeout(pollT);
+  const j = await api("/api/job").catch(() => null);
+  renderJob(j);
+  if (j && j.status === "running") { pollT = setTimeout(pollJob, 800); return; }
+  if (j && onJobDone[j.id]) { const f = onJobDone[j.id]; delete onJobDone[j.id]; f(j); }
+}
+async function startJob(path, body, then) {
+  try {
+    const j = await api(path, { method: "POST", json: body });
+    if (then) onJobDone[j.id] = then;
+    renderJob(j); pollJob();
+    return true;
+  } catch (e) { alertBox("Impossibile avviare", e.message); return false; }
+}
+function alertBox(title, msg) { confirmBox(title, `<p class="err">${esc(msg)}</p>`, "OK"); $("#cfno").hidden = true;
+  $("#confirm").addEventListener("close", () => $("#cfno").hidden = false, { once: true }); }
+$("#joblogbtn").onclick = () => $("#job").classList.toggle("showlog");
+$("#jobclose").onclick = () => $("#job").style.display = "none";
+
+/* ── panoramica ── */
 const tip = $("#tip");
 function bindTip(el, text) {
   el.addEventListener("mousemove", e => { tip.style.display = "block"; tip.textContent = text;
@@ -166,12 +360,15 @@ function bindTip(el, text) {
 }
 const NS = "http://www.w3.org/2000/svg";
 function svgEl(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
-
 let S = { by: "address", label: "all", q: "", sort: "rank", dir: -1, rows: [], sel: new Set() };
+let OV = null;
 
 async function loadOverview() {
-  const o = await api("/api/overview");
-  if (!o.n) { $("#main").innerHTML = '<div class="card empty">Cache vuota. Lancia <code>mail-radar scan</code> oppure <code>mail-radar demo</code>.</div>'; return false; }
+  const o = OV = await api("/api/overview");
+  const empty = !o.n;
+  $("#ov-empty").hidden = !empty; $("#ov-body").style.display = empty ? "none" : "grid";
+  renderCacheInfo();
+  if (empty) { $("#period").textContent = ""; return false; }
   $("#period").textContent = `${(o.first || "").slice(0, 10)} → ${(o.last || "").slice(0, 10)}`;
   const j = o.labels.junk;
   const k = [
@@ -180,7 +377,6 @@ async function loadOverview() {
     [fmtN(o.senders), "mittenti"], [fmtN(j.messages), `mail da mittenti junk · ${fmtMB(j.bytes)}`, "alert"],
   ];
   $("#kpis").innerHTML = k.map(([v, l, c]) => `<div class="kpi ${c || ""}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-
   const L = o.labels, tot = L.junk.messages + L.maybe.messages + L.keep.messages || 1;
   $("#split").innerHTML =
     `<div class="split">${["junk","maybe","keep"].map(x => `<div style="width:${L[x].messages / tot * 100}%;background:var(--${x})" title="${x}"></div>`).join("")}</div>
@@ -267,7 +463,7 @@ function renderSenders() {
     (!q || r.sender.includes(q) || (r.name || "").toLowerCase().includes(q) || (r.subjects || []).some(s => (s || "").toLowerCase().includes(q))));
   rows.sort((a, b) => (a[S.sort] > b[S.sort] ? 1 : a[S.sort] < b[S.sort] ? -1 : 0) * S.dir);
   const head = "<tr>" + COLS.map(([t, k, n]) => k === null && !t
-      ? `<th><input type="checkbox" id="all"></th>`
+      ? `<th><input type="checkbox" id="all" aria-label="seleziona tutti"></th>`
       : `<th class="${n ? "num" : ""}" data-k="${k ?? ""}">${t}${S.sort === k ? (S.dir > 0 ? " ↑" : " ↓") : ""}</th>`).join("") + "</tr>";
   const body = rows.slice(0, 500).map(r => `<tr>
     <td><input type="checkbox" data-s="${esc(r.sender)}" ${S.sel.has(r.sender) ? "checked" : ""}></td>
@@ -289,40 +485,39 @@ function renderSenders() {
 function updSel() {
   const rows = S.rows.filter(r => S.sel.has(r.sender));
   $("#selinfo").textContent = rows.length ? `${rows.length} selezionati · ${fmtN(rows.reduce((a, r) => a + r.n, 0))} mail` : "";
-  $("#mkrule").disabled = !rows.length;
+  $("#mkrule").disabled = $("#mkunsub").disabled = !rows.length;
 }
 
 async function openMessages(p) {
-  const qs = new URLSearchParams(p).toString();
-  const rows = await api("/api/messages?" + qs);
+  const rows = await api("/api/messages?" + new URLSearchParams(p).toString());
   $("#dlgt").textContent = p.sender || p.domain;
   $("#dlgb").innerHTML = `<table class="data"><tr><th>Data</th><th>Da</th><th>Oggetto</th><th class="num">KB</th><th>Stato</th></tr>${rows.map(m => `<tr>
-    <td class="hint">${esc((m.date || "").slice(0, 16).replace("T", " "))}</td><td class="sender">${esc(m.from_addr)}</td>
+    <td class="hint">${esc((m.date || "").slice(0, 16).replace("T", " "))}</td><td class="mono">${esc(m.from_addr)}</td>
     <td>${esc(m.subject)}</td><td class="num">${Math.round((m.size || 0) / 1024)}</td>
     <td class="hint">${m.seen ? "letta" : "<b>non letta</b>"}${m.answered ? " · risposta" : ""}${m.flagged ? " · ★" : ""}${m.has_unsub ? " · unsub" : ""}</td></tr>`).join("")}</table>`;
   $("#dlg").showModal();
 }
 
-function yamlStr(s) { return JSON.stringify(s); }
 $("#mkrule").onclick = () => {
   const key = S.by === "address" ? "from" : "from_domain";
   const rows = S.rows.filter(r => S.sel.has(r.sender));
-  let txt = $("#yaml").value.replace(/rules:\s*\[\]\s*$/, "rules:\n");
-  if (!/rules:/.test(txt)) txt += "\nrules:\n";
-  for (const r of rows) {
-    txt += `  - name: ${yamlStr(r.sender)}\n    match:\n      ${key}: [${yamlStr(r.sender)}]\n    action: trash\n`;
-  }
-  $("#yaml").value = txt.replace(/\n{3,}/g, "\n\n");
-  $("#yaml").scrollIntoView({ behavior: "smooth", block: "center" });
+  let txt = $("#yaml").value;
+  if (!txt.trim()) txt = "protect_flagged: true\nprotect_answered: true\nrules:\n";
+  txt = txt.replace(/rules:\s*\[\]\s*$/, "rules:\n");
+  if (!/^rules:/m.test(txt)) txt += "\nrules:\n";
+  if (!txt.endsWith("\n")) txt += "\n";
+  txt += `  - name: ${JSON.stringify("dalla dashboard " + new Date().toISOString().slice(0, 10))}\n    match:\n      ${key}:\n`;
+  for (const r of rows) txt += `        - ${JSON.stringify(r.sender)}\n`;
+  txt += "    action: trash\n";
+  $("#yaml").value = txt;
+  $("#rulesmsg").textContent = `Aggiunta una regola con ${rows.length} mittenti (non ancora salvata).`;
+  showTab("rules");
 };
-
-$("#preview").onclick = async () => {
-  $("#pres").innerHTML = '<p class="hint">Calcolo…</p>';
-  try {
-    const r = await api("/api/rules/preview", { method: "POST", headers: { "Content-Type": "text/plain" }, body: $("#yaml").value });
-    $("#pres").innerHTML = `<p><b>${fmtN(r.total)}</b> mail corrispondono · ${fmtMB(r.bytes)}</p>
-      <table class="data"><tr><th>Regola</th><th class="num">Mail</th></tr>${r.per_rule.map(x => `<tr><td class="sender">${esc(x.rule)}</td><td class="num">${fmtN(x.n)}</td></tr>`).join("")}</table>`;
-  } catch (e) { $("#pres").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+$("#mkunsub").onclick = () => {
+  const rows = S.rows.filter(r => S.sel.has(r.sender));
+  const body = S.by === "address" ? { senders: rows.map(r => r.sender) } : { domains: rows.map(r => r.sender) };
+  $("#selfrom").textContent = `${rows.length} ${S.by === "address" ? "mittenti" : "domini"} dalla Panoramica`;
+  showTab("unsub"); planUnsub(body);
 };
 
 document.querySelectorAll("[data-by]").forEach(b => b.onclick = () => {
@@ -331,8 +526,163 @@ document.querySelectorAll("[data-label]").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-label]").forEach(x => x.classList.toggle("on", x === b)); S.label = b.dataset.label; renderSenders(); });
 $("#q").oninput = e => { S.q = e.target.value; renderSenders(); };
 
-(async () => {
+async function refreshAll() {
   if (await loadOverview()) await Promise.all([loadMonthly(), loadHeat(), loadDomains(), loadSenders()]);
+}
+
+/* ── scan ── */
+let ACC = null;
+function renderCacheInfo() {
+  if (!OV) return;
+  $("#cacheinfo").innerHTML = OV.n
+    ? `<p><b>${fmtN(OV.n)}</b> mail · ${fmtMB(OV.bytes)} · dal ${(OV.first || "").slice(0, 10)} al ${(OV.last || "").slice(0, 10)}</p>
+       <table class="data"><tr><th>Cartella</th><th class="num">Mail</th><th class="num">Spazio</th></tr>
+       ${OV.folders.map(f => `<tr><td class="mono">${esc(f.folder)}</td><td class="num">${fmtN(f.n)}</td><td class="num">${fmtMB(f.bytes)}</td></tr>`).join("")}</table>`
+    : "Vuota.";
+}
+async function loadAccount() {
+  ACC = await api("/api/account");
+  const el = $("#acc");
+  if (!ACC.configured) {
+    el.innerHTML = `<div class="form">
+      <label for="a-user">Indirizzo</label><input type="email" id="a-user" placeholder="nome@libero.it">
+      <label for="a-prov">Provider</label><select id="a-prov"><option value="libero">Libero</option><option value="gmail">Gmail</option>
+        <option value="outlook">Outlook</option><option value="yahoo">Yahoo</option><option value="icloud">iCloud</option><option value="">altro (host)</option></select>
+      <label for="a-host">Host IMAP</label><input type="text" id="a-host" placeholder="solo se 'altro'">
+      <label for="a-pw">Password</label><input type="password" id="a-pw" autocomplete="current-password">
+      <span></span><div><button class="primary" id="a-save">Usa questo account</button></div></div>
+      <p class="hint">Credenziali tenute solo in memoria finché la GUI resta aperta. Per renderle permanenti usa <code>mail-radar.toml</code> e il keyring.</p>`;
+    $("#a-save").onclick = () => saveAccount({ user: $("#a-user").value, provider: $("#a-prov").value, host: $("#a-host").value, password: $("#a-pw").value });
+  } else {
+    el.innerHTML = `<p><span class="status-dot ${ACC.has_password ? "ok" : "warn"}"></span><b class="mono">${esc(ACC.user)}</b>
+        <span class="hint">· ${esc(ACC.host)}:${ACC.port}${ACC.smtp_host ? " · SMTP " + esc(ACC.smtp_host) : ""}</span></p>
+      ${ACC.has_password ? `<p class="hint">Password disponibile.</p>` : `<div class="controls">
+        <input type="password" id="a-pw" placeholder="Password IMAP" autocomplete="current-password">
+        <button class="primary" id="a-save">Imposta</button></div>
+        <p class="hint">Non trovata in <code>MAIL_RADAR_PASSWORD</code> né nel keyring: resta solo in memoria.</p>`}`;
+    if (!ACC.has_password) $("#a-save").onclick = () => saveAccount({ password: $("#a-pw").value });
+  }
+  if (!$("#folders").children.length) renderFolders((ACC.folders || ["INBOX"]), ACC.folders || ["INBOX"]);
+  $("#startscan").disabled = $("#loadfolders").disabled = !(ACC.configured && ACC.has_password);
+}
+async function saveAccount(body) {
+  try { await api("/api/account", { method: "POST", json: body }); await loadAccount(); }
+  catch (e) { alertBox("Account", e.message); }
+}
+function renderFolders(all, checked) {
+  const ch = new Set(checked);
+  $("#folders").innerHTML = all.map(f => `<label title="${esc(f)}"><input type="checkbox" value="${esc(f)}" ${ch.has(f) ? "checked" : ""}> <span class="mono">${esc(f)}</span></label>`).join("");
+}
+$("#loadfolders").onclick = async () => {
+  const btn = $("#loadfolders"); btn.disabled = true; btn.textContent = "Connessione…";
+  try {
+    const cur = [...$("#folders").querySelectorAll("input:checked")].map(i => i.value);
+    renderFolders(await api("/api/folders"), cur.length ? cur : ["INBOX"]);
+  } catch (e) { alertBox("Cartelle", e.message); }
+  btn.disabled = false; btn.textContent = "Carica elenco dal server";
+};
+$("#startscan").onclick = () => {
+  const folders = [...$("#folders").querySelectorAll("input:checked")].map(i => i.value);
+  if (!folders.length) return alertBox("Scan", "Seleziona almeno una cartella.");
+  startJob("/api/scan", { folders, full: $("#fullscan").checked }, refreshAll);
+};
+
+/* ── regole ── */
+async function loadRules() {
+  const r = await api("/api/rules");
+  $("#rulespath").textContent = r.path || "";
+  if (!$("#yaml").value) $("#yaml").value = r.text || "protect_flagged: true\nprotect_answered: true\nrules: []\n";
+}
+async function previewRules() {
+  $("#pres").innerHTML = '<p class="hint">Calcolo…</p>';
+  try {
+    const r = await api("/api/rules/preview", { method: "POST", headers: { "Content-Type": "text/plain" }, body: $("#yaml").value });
+    $("#pres").innerHTML = `<p><b>${fmtN(r.total)}</b> mail corrispondono · ${fmtMB(r.bytes)}</p>
+      <table class="data"><tr><th>Regola</th><th class="num">Mail</th></tr>${r.per_rule.map(x => `<tr><td>${esc(x.rule)}</td><td class="num">${fmtN(x.n)}</td></tr>`).join("")}</table>`;
+    return r;
+  } catch (e) { $("#pres").innerHTML = `<p class="err">${esc(e.message)}</p>`; return null; }
+}
+$("#preview").onclick = previewRules;
+$("#saverules").onclick = async () => {
+  try { const r = await api("/api/rules", { method: "PUT", json: { text: $("#yaml").value } });
+    $("#rulesmsg").innerHTML = `<span class="ok">Salvate in ${esc(r.path)}</span>`; }
+  catch (e) { $("#rulesmsg").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+};
+$("#applyrules").onclick = async () => {
+  const r = await previewRules();
+  if (!r) return;
+  if (!r.total) return alertBox("Regole", "Nessuna mail corrisponde alle regole.");
+  const ok = await confirmBox("Applicare le regole?",
+    `<p>Verranno spostate <b>${fmtN(r.total)}</b> mail (${fmtMB(r.bytes)}) sul server.</p>
+     <p class="hint">Nessuna cancellazione definitiva: finiscono nel cestino o nella cartella indicata dalla regola, e si possono recuperare.</p>`,
+    `Sposta ${fmtN(r.total)} mail`);
+  if (ok) startJob("/api/rules/apply", { text: $("#yaml").value }, () => { refreshAll(); previewRules(); });
+};
+
+/* ── disiscrizioni ── */
+let PLAN = [];
+const unsubOpts = () => ({ min_messages: +$("#minmsg").value || 3, min_months: +$("#minmon").value || 2, trust_dkim_signature: $("#trustdkim").checked });
+async function planUnsub(sel) {
+  const prev = $("#plan").innerHTML;
+  $("#plan").innerHTML = '<tr><td class="empty">Analisi in corso…</td></tr>';
+  const started = await startJob("/api/unsubscribe/plan", { ...sel, ...unsubOpts() }, j => {
+    if (j.status !== "done") { $("#plan").innerHTML = `<tr><td class="empty err">${esc(j.error)}</td></tr>`; return; }
+    PLAN = j.result.candidates; renderPlan();
+  });
+  if (!started) $("#plan").innerHTML = prev;
+}
+$("#planrules").onclick = () => {
+  $("#selfrom").textContent = "dalle regole nell'editor";
+  planUnsub({ text: $("#yaml").value, rule_globs: [$("#ruleglob").value || "*"] });
+};
+const METHOD = { "one-click": "one-click", mailto: "mailto", manual: "link web", none: "—" };
+function renderPlan() {
+  PLAN.sort((a, b) => (b.safe - a.safe) || (b.n - a.n));
+  const safe = PLAN.filter(c => c.safe);
+  $("#plansum").textContent = `${safe.length} su ${PLAN.length} disiscrivibili in automatico`;
+  $("#plan").innerHTML = `<tr><th><input type="checkbox" id="pall" checked aria-label="tutti"></th><th>Mittente</th><th class="num">Mail</th><th>Metodo</th><th>Autenticazione</th><th>Esito</th></tr>` +
+    (PLAN.map((c, i) => `<tr class="${c.safe ? "" : "off"}">
+      <td><input type="checkbox" data-i="${i}" ${c.safe ? "checked" : "disabled"}></td>
+      <td><div class="mono">${esc(c.sender)}</div><div class="hint">${esc(c.name || "")}</div></td>
+      <td class="num">${fmtN(c.n)}</td>
+      <td><span class="badge ${c.safe ? "keep" : "muted"}">${METHOD[c.method]}</span></td>
+      <td class="hint">${esc(c.auth || "—")}</td>
+      <td>${c.safe ? '<span class="ok">ok</span>' : `<span class="hint">${esc(c.reasons.join("; "))}</span>`}
+        ${c.method === "manual" && c.target && /^https?:/.test(c.target) ? ` <a class="btn" href="${esc(c.target)}" target="_blank" rel="noopener noreferrer">apri link</a>` : ""}</td></tr>`).join("")
+     || `<tr><td colspan="6" class="empty">Nessun candidato</td></tr>`);
+  $("#pall").onchange = e => { $("#plan").querySelectorAll("[data-i]:not(:disabled)").forEach(cb => cb.checked = e.target.checked); updPlan(); };
+  $("#plan").querySelectorAll("[data-i]").forEach(cb => cb.onchange = updPlan);
+  updPlan();
+}
+const chosen = () => [...$("#plan").querySelectorAll("[data-i]:checked")].map(cb => PLAN[+cb.dataset.i]);
+function updPlan() { const n = chosen().length; $("#dounsub").disabled = !n; $("#dounsub").textContent = n ? `Disiscrivi ${n}…` : "Disiscrivi…"; }
+$("#dounsub").onclick = async () => {
+  const cs = chosen(); const trash = $("#unsubtrash").checked;
+  const mails = cs.reduce((a, c) => a + c.n, 0);
+  const ok = await confirmBox(`Disiscriversi da ${cs.length} mittenti?`,
+    `<p>${cs.filter(c => c.method === "one-click").length} via one-click, ${cs.filter(c => c.method === "mailto").length} via mailto (inviato dal tuo indirizzo).</p>
+     ${trash ? `<p>Poi verranno spostate nel cestino le loro <b>${fmtN(mails)}</b> mail esistenti (escluse stelle e risposte).</p>` : ""}
+     <p class="hint">La disiscrizione non si può annullare da qui.</p>`, "Disiscrivi");
+  if (ok) startJob("/api/unsubscribe/execute", { senders: cs.map(c => c.sender), trash, ...unsubOpts() }, () => {
+    loadHistory(); refreshAll();
+    const done = new Set(cs.map(c => c.sender));
+    PLAN = PLAN.map(c => done.has(c.sender) ? { ...c, safe: false, reasons: ["appena elaborato: vedi storico"] } : c); renderPlan();
+  });
+};
+async function loadHistory() {
+  const rows = await api("/api/unsubscribe/history");
+  $("#history").innerHTML = `<tr><th>Quando</th><th>Mittente</th><th>Metodo</th><th>Esito</th><th>Dettaglio</th></tr>` +
+    (rows.map(r => `<tr><td class="hint">${esc(r.ts)}</td><td class="mono">${esc(r.sender)}</td><td>${esc(r.method)}</td>
+      <td>${r.status === "ok" ? '<span class="ok">ok</span>' : '<span class="err">errore</span>'}</td><td class="hint">${esc(r.detail)}</td></tr>`).join("")
+     || `<tr><td colspan="5" class="empty">Ancora nessuna disiscrizione.</td></tr>`);
+}
+
+/* ── avvio ── */
+(async () => {
+  let t = "overview"; try { t = localStorage.getItem("mr-tab") || t; } catch {}
+  await Promise.all([refreshAll(), loadRules()]);
+  showTab(t);
+  pollJob();
 })();
 </script>
 </body>

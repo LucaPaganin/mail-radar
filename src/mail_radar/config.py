@@ -27,6 +27,7 @@ DEFAULT_CONFIG_PATHS = [
     Path("mail-radar.toml"),
     Path.home() / ".config" / "mail-radar" / "config.toml",
 ]
+DEFAULT_RULES = Path.home() / ".config" / "mail-radar" / "rules.yaml"
 DEFAULT_DB = Path.home() / ".local" / "share" / "mail-radar" / "mail-radar.db"
 
 
@@ -46,6 +47,26 @@ class Account:
         if self._pw is None:
             self._pw = self._read_password()
         return self._pw
+
+    def set_password(self, pw: str) -> None:
+        self._pw = pw
+
+    def stored_password(self) -> str | None:
+        """Password da env o keyring, senza mai chiederla (per la GUI)."""
+        if self._pw is None:
+            self._pw = self._env_or_keyring()
+        return self._pw
+
+    def _env_or_keyring(self) -> str | None:
+        pw = os.environ.get("MAIL_RADAR_PASSWORD")
+        if pw:
+            return pw
+        try:
+            import keyring  # type: ignore
+
+            return keyring.get_password("mail-radar", self.user) or None
+        except Exception:  # noqa: BLE001
+            return None
 
     def _read_password(self) -> str:
         pw = os.environ.get("MAIL_RADAR_PASSWORD")
@@ -68,6 +89,7 @@ class Account:
 class Config:
     account: Account | None
     db_path: Path
+    rules_path: Path = DEFAULT_RULES
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -110,4 +132,20 @@ def load_config(path: Path | None = None) -> Config:
     db_path = Path(
         os.environ.get("MAIL_RADAR_DB", data.get("db_path", str(DEFAULT_DB)))
     ).expanduser()
-    return Config(account=account, db_path=db_path)
+    rules_path = Path(data.get("rules_path", str(DEFAULT_RULES))).expanduser()
+    return Config(account=account, db_path=db_path, rules_path=rules_path)
+
+
+def make_account(user: str, provider: str | None = None, host: str | None = None,
+                 port: int | None = None) -> Account:
+    """Account costruito a runtime (GUI) a partire da indirizzo e provider/host."""
+    if not host:
+        key = (provider or "").lower() or next(
+            (k for k in PRESETS if k in user.split("@")[-1].lower()), "")
+        if key not in PRESETS:
+            raise ValueError("Provider sconosciuto: indica l'host IMAP")
+        host, p = PRESETS[key]
+        port = port or p
+    acc = Account(user=user, host=host, port=port or 993)
+    acc.smtp_host, acc.smtp_port = SMTP_PRESETS.get(host, (None, 465))
+    return acc

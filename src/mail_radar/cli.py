@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
 
-from . import analysis, db
+from . import analysis, db, ops
 from . import rules as rules_mod
 from .config import load_config
 
@@ -70,25 +70,16 @@ def scan(
     full: Annotated[bool, typer.Option("--full", help="Riscarica tutto da zero")] = False,
 ):
     """Scarica (solo) gli header nella cache locale. Incrementale."""
-    from .imap import list_folders, open_client, scan_folder
+    with Progress(console=console, transient=True) as prog:
+        tasks: dict[str, int] = {}
 
-    acc = _account()
-    conn = _conn()
-    with open_client(acc) as c:
-        targets = list_folders(c) if all_folders else (folder or acc.folders)
-        for f in targets:
-            with Progress(console=console, transient=True) as prog:
-                task = prog.add_task(f"Scan {f}", total=None)
+        def progress(label, done, total):
+            if label not in tasks:
+                tasks[label] = prog.add_task(label, total=total)
+            prog.update(tasks[label], completed=done, total=total)
 
-                def cb(done, total, task=task):
-                    prog.update(task, completed=done, total=total)
-
-                try:
-                    res = scan_folder(c, conn, f, progress=cb, full=full)
-                except Exception as e:  # cartelle non selezionabili ecc.
-                    console.print(f"[yellow]{f}: saltata ({e})[/]")
-                    continue
-            console.print(f"[green]{f}[/]: {res['new']} nuove, {res['removed']} rimosse, {res['total']} totali")
+        ops.scan(_account(), _conn(), folders=folder, all_folders=all_folders, full=full,
+                 log=lambda m: prog.console.print(m), progress=progress)
 
 
 @app.command()
@@ -196,47 +187,7 @@ def rules_apply(
         return
     if not yes and not typer.confirm(f"Spostare {len(matches)} mail?"):
         raise typer.Abort()
-
-    from .imap import find_trash, move_uids, open_client
-
-    acc = _account()
-    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    for m in matches:
-        groups[(m["folder"], m["action"])].append(m)
-    with open_client(acc) as c:
-        trash = find_trash(c, acc.trash_folder)
-        for (folder, action), ms in groups.items():
-            dest = trash if action == "trash" else action.split(":", 1)[1]
-            if dest == folder:
-                continue
-            uids = [m["uid"] for m in ms]
-            for i in range(0, len(uids), 500):
-                how = move_uids(c, folder, uids[i:i + 500], dest)
-            db.log_actions(conn, [{"rule": m["rule"], "action": f"{action}->{dest}", "folder": folder,
-                                   "uid": m["uid"], "from_addr": m["from_addr"],
-                                   "subject": m["subject"]} for m in ms])
-            db.delete_uids(conn, folder, uids)
-            console.print(f"{folder} → {dest}: {len(uids)} mail ({how})")
-            if how == "copy+flag_deleted":
-                console.print("[yellow]Il server non supporta MOVE/UIDPLUS: originali marcati \\Deleted, non espunti.[/]")
-
-
-def _select_senders(conn, senders, domains, rules_file, rule_globs) -> set[str]:
-    import fnmatch
-
-    out: set[str] = {s.lower() for s in senders or []}
-    for d in domains or []:
-        d = d.lower()
-        out |= {r[0] for r in conn.execute(
-            "SELECT DISTINCT from_addr FROM messages WHERE from_domain = ? OR from_domain LIKE ?",
-            (d, f"%.{d}"))}
-    if rules_file:
-        globs = rule_globs or ["*"]
-        for m in rules_mod.evaluate(conn, rules_mod.load_rules(rules_file)):
-            if any(fnmatch.fnmatch(m["rule"].lower(), g.lower()) for g in globs):
-                out.add(m["from_addr"])
-    out.discard(None)
-    return out
+    ops.apply_matches(_account(), conn, matches, log=console.print)
 
 
 @app.command()
@@ -258,33 +209,20 @@ def unsubscribe(
 
     Esempio:  mail-radar unsubscribe --rules rules.yaml --rule 'newsletter*'
     """
-    from . import unsubscribe as unsub
-    from .headers import HDR_VERSION
-
     conn = _conn()
     if not (sender or domain or rules_file):
         console.print("[red]Seleziona i mittenti:[/] --sender, --domain oppure --rules/--rule. "
                       "Per sicurezza non c'è un default 'tutti'.")
         raise typer.Exit(2)
-    selected = _select_senders(conn, sender, domain, rules_file, rule)
+    ruleset = rules_mod.load_rules(rules_file) if rules_file else None
+    selected = ops.select_senders(conn, sender, domain, ruleset, rule)
     if not selected:
         console.print("Nessun mittente selezionato.")
         return
-    cands = unsub.latest_per_sender(conn, selected)
-
-    stale = [c for c in cands if c.hdr_version < HDR_VERSION and c.list_unsubscribe]
-    if stale and refresh:
-        from .imap import open_client, refresh_headers
-
-        with open_client(_account()) as c:
-            n = refresh_headers(c, conn, [vars(x) for x in stale])
-        console.print(f"Aggiornati gli header estesi di {n} mail.")
-        cands = unsub.latest_per_sender(conn, selected)
-
-    done = db.unsubscribed(conn)
-    for c in cands:
-        unsub.classify(c, min_messages=min_messages, min_months=min_months,
-                       trust_dkim_signature=trust_dkim_signature, done=done)
+    account = _state["cfg"].account
+    cands = ops.unsub_plan(conn, account, selected, refresh=refresh, min_messages=min_messages,
+                           min_months=min_months, trust_dkim_signature=trust_dkim_signature,
+                           log=console.print)
 
     safe = [c for c in cands if c.safe]
     manual = [c for c in cands if c.method == "manual" and not c.interactions]
@@ -316,51 +254,18 @@ def unsubscribe(
         return
     if not yes and not typer.confirm(f"Disiscriversi da {len(safe)} mittenti?"):
         raise typer.Abort()
-
-    def report(c, ok, detail):
-        console.print(f"{'[green]✓[/]' if ok else '[red]✗[/]'} {c.sender}: {detail}")
-
-    results = unsub.execute(conn, safe, _account(), progress=report)
-    ok_senders = [c.sender for c, ok, _ in results if ok]
-    console.print(f"Riuscite {len(ok_senders)} su {len(results)}. Log nella tabella 'unsubscribes'.")
-
-    if trash and ok_senders:
-        from .imap import find_trash, open_client
-
-        ph = ",".join("?" * len(ok_senders))
-        ms = [dict(r) for r in conn.execute(
-            f"SELECT folder, uid, from_addr, subject FROM messages WHERE from_addr IN ({ph}) "
-            "AND flagged = 0 AND answered = 0", ok_senders)]
-        with open_client(_account()) as c:
-            _move_to(c, conn, ms, find_trash(c, _account().trash_folder), "unsubscribe")
-
-
-def _move_to(client, conn, ms: list[dict], dest: str, rule: str) -> None:
-    from .imap import move_uids
-
-    by_folder: dict[str, list[dict]] = defaultdict(list)
-    for m in ms:
-        by_folder[m["folder"]].append(m)
-    for folder, fms in by_folder.items():
-        if folder == dest:
-            continue
-        uids = [m["uid"] for m in fms]
-        for i in range(0, len(uids), 500):
-            how = move_uids(client, folder, uids[i:i + 500], dest)
-        db.log_actions(conn, [{"rule": rule, "action": f"trash->{dest}", "folder": folder,
-                               "uid": m["uid"], "from_addr": m["from_addr"],
-                               "subject": m["subject"]} for m in fms])
-        db.delete_uids(conn, folder, uids)
-        console.print(f"{folder} → {dest}: {len(uids)} mail ({how})")
+    res = ops.unsub_execute(conn, _account(), cands, trash=trash, log=console.print)
+    console.print(f"Riuscite {res['ok']}, fallite {res['failed']}, spostate {res['moved']} mail. "
+                  "Log nella tabella 'unsubscribes'.")
 
 
 @app.command()
 def dashboard(
-    host: str = "127.0.0.1",
     port: int = 8765,
+    rules_file: Annotated[Path | None, typer.Option("--rules", help="File di regole letto/salvato dalla GUI")] = None,
     open_browser: Annotated[bool, typer.Option("--open/--no-open")] = True,
 ):
-    """Avvia la dashboard web locale."""
+    """Avvia la GUI locale (dashboard, scan, regole, disiscrizioni) su 127.0.0.1."""
     import threading
     import webbrowser
 
@@ -368,11 +273,15 @@ def dashboard(
 
     from .web import create_app
 
+    cfg = _state["cfg"]
+    host = "127.0.0.1"  # mai esposta in rete: la GUI può modificare la casella
     url = f"http://{host}:{port}"
-    console.print(f"Dashboard su [link={url}]{url}[/link] (Ctrl+C per uscire)")
+    app_ = create_app(cfg.db_path, account=cfg.account, rules_path=rules_file or cfg.rules_path,
+                      allowed_hosts={f"{host}:{port}", f"localhost:{port}"})
+    console.print(f"mail-radar su [link={url}]{url}[/link] (Ctrl+C per uscire)")
     if open_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    uvicorn.run(create_app(_state["cfg"].db_path), host=host, port=port, log_level="warning")
+    uvicorn.run(app_, host=host, port=port, log_level="warning")
 
 
 @app.command()

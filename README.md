@@ -5,7 +5,8 @@ flag, `List-Unsubscribe`…). Nessun corpo dei messaggi viene scaricato.
 
 - **scan** incrementale in una cache SQLite locale
 - **insight**: classifica mittenti con punteggio "spazzatura", volumi nel tempo, orari, domini
-- **dashboard** web locale (nessuna dipendenza esterna, gira su `127.0.0.1`)
+- **GUI** web locale (`mail-radar dashboard`, solo `127.0.0.1`, nessuna dipendenza esterna): panoramica,
+  scan, editor e applicazione delle regole, disiscrizioni
 - **regole** YAML con dry-run di default; le mail vengono solo **spostate** nel cestino, mai cancellate
 - **unsubscribe** in blocco, solo per mittenti autenticati (DMARC/DKIM) via one-click RFC 8058 o mailto
 - **export** del riepilogo mittenti in JSON/CSV, da passare a un LLM per farsi scrivere le regole
@@ -52,7 +53,7 @@ mail-radar scan                    # scarica gli header (incrementale)
 mail-radar scan --all              # tutte le cartelle
 mail-radar stats                   # panoramica
 mail-radar senders --label junk    # classifica mittenti
-mail-radar dashboard               # apre http://127.0.0.1:8765
+mail-radar dashboard               # GUI su http://127.0.0.1:8765 (--rules per scegliere il file di regole)
 mail-radar export -o senders.json  # riepilogo per LLM
 
 mail-radar rules suggest -o rules.yaml      # bozza di regole dai mittenti peggiori
@@ -61,6 +62,21 @@ mail-radar rules apply rules.yaml --execute # sposta davvero (chiede conferma)
 ```
 
 Senza una casella a portata di mano: `mail-radar --db demo.db demo && mail-radar --db demo.db dashboard`.
+
+### GUI
+
+`mail-radar dashboard` apre un'interfaccia con quattro schede:
+
+- **Panoramica**: numeri, volume mensile, orari, domini, classifica mittenti con dettaglio delle mail.
+  Dalla tabella selezioni mittenti e li trasformi in una regola o li mandi alle disiscrizioni; export CSV/JSON.
+- **Scan**: account (se non configurato puoi inserirlo lì, resta solo in memoria), scelta cartelle, scan con
+  avanzamento.
+- **Regole**: editor YAML collegato a un file (`~/.config/mail-radar/rules.yaml` o `--rules`), anteprima per
+  regola, salvataggio e applicazione con conferma.
+- **Disiscrizioni**: analisi dei candidati (dalle regole o dalla selezione), con motivo per ogni scarto,
+  esecuzione e storico. I mittenti non sicuri non sono selezionabili e il server li riclassifica comunque.
+
+Le operazioni sulla casella girano in background, una alla volta, con barra di avanzamento e log.
 
 ## Punteggio spazzatura
 
@@ -131,7 +147,8 @@ solo quelli dell'ultima mail di ciascun mittente selezionato (`--no-refresh` per
 - lo scan apre le cartelle in sola lettura e usa `BODY.PEEK` (non marca le mail come lette)
 - nessuna cancellazione permanente: `MOVE`, oppure `COPY` + `UID EXPUNGE` solo sugli UID coinvolti; se il
   server non ha né `MOVE` né `UIDPLUS` gli originali restano marcati `\Deleted` senza expunge
-- la dashboard ascolta solo su `127.0.0.1` e non può modificare la casella
+- la GUI ascolta solo su `127.0.0.1`, verifica l'header `Host` (DNS rebinding) e accetta richieste che
+  modificano qualcosa solo con un token casuale generato all'avvio e inserito nella pagina
 
 ## Sviluppo
 
