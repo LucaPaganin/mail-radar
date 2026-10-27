@@ -90,11 +90,12 @@ rules:
       older_than_days: 30
       folder: [INBOX]
       min_sender_score: 0.6
-    action: trash                     # trash | move:<cartella>
+    action: trash                     # trash | move:<cartella> | keep
 ```
 
 Tra chiavi diverse vale AND, dentro una lista vale OR. Ogni mail è assegnata alla prima regola che la
-colpisce. Le azioni eseguite finiscono nella tabella `actions_log` della cache.
+colpisce: regole `keep` in cima fanno da whitelist (fatture, mittenti personali) e proteggono quelle mail
+dalle regole generiche più sotto. Le azioni eseguite finiscono nella tabella `actions_log` della cache.
 
 ## Sicurezza
 

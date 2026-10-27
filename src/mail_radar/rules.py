@@ -16,9 +16,11 @@ Formato:
           older_than_days: 30
           folder: [INBOX]
           min_sender_score: 0.6
-        action: trash                       # trash | move:<cartella>
+        action: trash                       # trash | move:<cartella> | keep
 
 Dentro un campo lista vale OR, tra campi diversi vale AND.
+Ogni mail viene assegnata alla prima regola che la colpisce: una regola `keep` in cima
+funziona da whitelist e sottrae le sue mail alle regole successive.
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ class Rule:
             raise ValueError(f"Regola '{self.name}': chiavi sconosciute {sorted(unknown)}")
         if not self.match:
             raise ValueError(f"Regola '{self.name}': 'match' vuoto (colpirebbe tutto)")
-        if not (self.action == "trash" or self.action.startswith("move:")):
+        if not (self.action in ("trash", "keep") or self.action.startswith("move:")):
             raise ValueError(f"Regola '{self.name}': azione non valida '{self.action}'")
         if self.match.get("subject_regex"):
             self._subject_re = re.compile(self.match["subject_regex"], re.IGNORECASE)
@@ -127,7 +129,8 @@ def evaluate(conn, ruleset: RuleSet, now: datetime | None = None) -> list[dict]:
             continue
         for r in ruleset.rules:
             if r.matches(m, scores, now):
-                out.append({**m, "rule": r.name, "action": r.action})
+                if r.action != "keep":
+                    out.append({**m, "rule": r.name, "action": r.action})
                 break
     return out
 

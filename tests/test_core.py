@@ -145,3 +145,16 @@ def test_web_api(tmp_path):
     assert r.json()["total"] > 0
     assert client.post("/api/rules/preview", content="rules: [{match: {}}]",
                        headers={"Content-Type": "text/plain"}).status_code == 400
+
+
+def test_keep_rule_whitelists(conn):
+    rs = rules.parse_rules("""
+rules:
+  - name: whitelist
+    match: {from: ["offerte@amazon.it"]}
+    action: keep
+  - name: tutto-amazon
+    match: {from_domain: [amazon.it]}
+""")
+    m = rules.evaluate(conn, rs)
+    assert m and all(x["from_addr"] == "auto-confirm@amazon.it" for x in m)
